@@ -220,16 +220,40 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.01em}
 <input type="file" id="photoInput" accept="image/*" capture="environment" class="hide" />
 
 <script type="module">
-import { isFirebaseConfigured, pullOnce, watchLocalStorage } from './firebase-sync.js';
+import { isFirebaseConfigured, pullProfile, watchProfile } from './firebase-sync.js';
 /* ============================================================
    Sappadu — South Indian Nutrition Tracker (offline mobile PWA)
 ============================================================ */
+
+/* ---- Profiles: Aswath and Surekaa keep fully independent data on the same
+   device — same idea as the workout app's per-profile prefix, adapted for
+   this app's flat store.get/set (see profileKeyPrefix below). ---- */
+const PROFILES=[{id:'aswath',label:'Aswath'},{id:'surekaa',label:'Surekaa'}];
+const isProfileId=v=>PROFILES.some(p=>p.id===v);
+const profileLabel=id=>(PROFILES.find(p=>p.id===id)||{}).label||id;
+const profileKeyPrefix=id=>`sp_${id}_`;
+function rawGet(k,def){try{const v=localStorage.getItem(k);return v==null?def:JSON.parse(v);}catch(e){return def;}}
+function rawSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+let activeProfileId=rawGet('activeProfile',null);
+if(!isProfileId(activeProfileId))activeProfileId=null;
+
+// Every key store.get/set ever touched before profiles existed — migrated into
+// whichever profile is chosen first on this device, so nobody's existing log
+// gets silently dropped by the upgrade.
+const LEGACY_KEYS=['aiKey','aiModel','customFoods','days','dietPref','favs','freq','haptics','installDismiss','migWaterMl','profile','recent','reminders','theme','weights'];
+function migrateLegacyDataTo(id){
+  const prefix=profileKeyPrefix(id);
+  LEGACY_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null){localStorage.setItem(prefix+k,v);localStorage.removeItem(k);}});
+}
+function chooseProfile(id){migrateLegacyDataTo(id);rawSet('activeProfile',id);location.reload();}
+function switchProfile(id){rawSet('activeProfile',id);location.reload();}
+
 const mem={};
 let storageOK=true, storageWarned=false;
 function warnStorageOnce(){if(storageWarned)return;storageWarned=true;try{toast('⚠️ Storage is blocked — turn off Private Browsing so your log is saved');}catch(e){}}
 const store={
-  get(k,def){try{const v=localStorage.getItem(k);if(v==null)return (k in mem)?mem[k]:def;return JSON.parse(v);}catch(e){return (k in mem)?mem[k]:def;}},
-  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){mem[k]=v;storageOK=false;warnStorageOnce();}}
+  get(k,def){const key=activeProfileId?profileKeyPrefix(activeProfileId)+k:k;try{const v=localStorage.getItem(key);if(v==null)return (key in mem)?mem[key]:def;return JSON.parse(v);}catch(e){return (key in mem)?mem[key]:def;}},
+  set(k,v){const key=activeProfileId?profileKeyPrefix(activeProfileId)+k:k;try{localStorage.setItem(key,JSON.stringify(v));}catch(e){mem[key]=v;storageOK=false;warnStorageOnce();}}
 };
 function initStorage(){
   try{const k='__sappadu_probe__';localStorage.setItem(k,'1');storageOK=localStorage.getItem(k)==='1';localStorage.removeItem(k);}
@@ -601,6 +625,21 @@ function ringSVG(pct,size,color,stroke,grad){pct=Math.max(0,Math.min(1,pct));con
 
 /* ============================ RENDER ============================ */
 const app=$('#app');
+function renderIdentityPicker(){
+  app.innerHTML='';
+  const scr=el(`<div class="screen" style="display:flex;flex-direction:column;justify-content:center;min-height:100vh;padding:24px">
+    <div style="text-align:center;margin-bottom:28px"><div style="font-size:44px">🍛</div>
+      <h2 style="margin-top:8px">Who's logging?</h2>
+      <p class="muted" style="font-size:13px">Sappadu keeps each person's log, goals and settings completely separate on this device.</p></div>
+    <div id="picks" style="display:flex;flex-direction:column;gap:12px"></div></div>`);
+  const picks=scr.querySelector('#picks');
+  PROFILES.forEach(p=>{
+    const b=el(`<button class="btn btn-tonal" style="padding:18px;font-size:16px">${p.label}</button>`);
+    b.onclick=()=>chooseProfile(p.id);
+    picks.appendChild(b);
+  });
+  app.appendChild(scr);
+}
 function render(){
   document.documentElement.setAttribute('data-theme',state.theme);
   if(!state.profile){renderOnboarding();return;}
@@ -1209,6 +1248,12 @@ function renderProfile(scr){
     .forEach(([k,v],i,a)=>card.appendChild(el(`<div class="wk-stat" ${i===a.length-1?'style="border:none"':''}><span class="muted">${k}</span><b style="text-transform:capitalize">${v}</b></div>`)));
   scr.appendChild(card);
 
+  const pc=el(`<div class="card" style="margin:12px 0 0"><div class="card-title">Profile</div>
+    <div class="row-between" style="padding:6px 0"><span class="muted">Signed in as</span><b>${profileLabel(activeProfileId)}</b></div>
+    <button class="btn btn-tonal" id="swp" style="margin-top:6px">🔁 Switch to ${profileLabel(PROFILES.find(x=>x.id!==activeProfileId).id)}</button></div>`);
+  pc.querySelector('#swp').onclick=()=>{const other=PROFILES.find(x=>x.id!==activeProfileId).id;if(confirm(`Switch to ${profileLabel(other)}'s profile?`))switchProfile(other);};
+  scr.appendChild(pc);
+
   const sc=el(`<div class="card" style="margin:12px 0 0"><div class="card-title">Storage</div><div id="scBody" class="muted" style="font-size:13px">Checking…</div></div>`);
   storageStatus().then(s=>{const b=sc.querySelector('#scBody');const mb=s.usage!=null?' · '+(s.usage/1048576).toFixed(2)+' MB used':'';
     if(s.ok){b.innerHTML=`✅ Saved on this device${s.persisted?' · <b style="color:var(--green)">persistent</b>':''}${mb}<br><span style="font-size:11.5px">Your log stays even after you close, restart or update the app.</span>`;
@@ -1234,7 +1279,10 @@ function renderProfile(scr){
       if(d.profile){store.set('profile',d.profile);state.profile=d.profile;}if(d.days)store.set('days',d.days);if(d.weights)store.set('weights',d.weights);
       if(d.customFoods)store.set('customFoods',d.customFoods);if(d.favs){store.set('favs',d.favs);state.favs=d.favs;}if(d.freq){store.set('freq',d.freq);state.freq=d.freq;}if(d.recent){store.set('recent',d.recent);state.recent=d.recent;}
       toast('Data restored');render();}catch(e){toast('Invalid backup file');}};r.readAsText(f);};inp.click();};
-  btns.querySelector('#reset').onclick=()=>{if(confirm('Delete all logged data and start over?')){try{localStorage.clear();}catch(e){}location.reload();}};
+  btns.querySelector('#reset').onclick=()=>{if(confirm(`Delete ${profileLabel(activeProfileId)}'s logged data and start over? This won't affect ${profileLabel(PROFILES.find(x=>x.id!==activeProfileId).id)}'s data.`)){
+    const prefix=profileKeyPrefix(activeProfileId);
+    try{Object.keys(localStorage).filter(k=>k.startsWith(prefix)).forEach(k=>localStorage.removeItem(k));}catch(e){}
+    location.reload();}};
   scr.appendChild(btns);
   scr.appendChild(el(`<div class="muted" style="text-align:center;font-size:11px;padding:8px 20px 20px">Sappadu · Works offline · Data stays on your device.<br>Nutrition values are approximate references for South Indian foods.</div>`));
 }
@@ -1342,21 +1390,26 @@ function resyncStateFromStore(){
   state.freq=store.get('freq',{});
 }
 
-initStorage();
-migrateWaterToMl();
-(async()=>{
-  if(isFirebaseConfigured){
-    // Race the pull against a timeout so a slow/broken connection never blocks
-    // first paint — worst case we render local data and sync catches up later.
-    await Promise.race([pullOnce(), new Promise(r=>setTimeout(r,2500))]);
-    migrateWaterToMl();
-    migrateGoalScheme();
-    resyncStateFromStore();
-    watchLocalStorage();
-  }
-  render();
-  if('serviceWorker'in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
-})();
+if(!activeProfileId){
+  renderIdentityPicker();
+}else{
+  initStorage();
+  migrateWaterToMl();
+  (async()=>{
+    if(isFirebaseConfigured){
+      // Race the pull against a timeout so a slow/broken connection never blocks
+      // first paint — worst case we render local data and sync catches up later.
+      const prefix=profileKeyPrefix(activeProfileId);
+      await Promise.race([pullProfile(activeProfileId,prefix), new Promise(r=>setTimeout(r,2500))]);
+      migrateWaterToMl();
+      migrateGoalScheme();
+      resyncStateFromStore();
+      watchProfile(activeProfileId,prefix);
+    }
+    render();
+    if('serviceWorker'in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
+  })();
+}
 </script>
 </body>
 </html>

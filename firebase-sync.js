@@ -1,9 +1,8 @@
 // Cloud sync for Sappadu — mirrors the same architecture used in the workout
-// app's lib/firebase.ts + lib/cloudSync.ts, adapted for a build-step-free
-// vanilla app: one shared Firestore document (Sappadu has no per-person
-// profile split, unlike the workout app), anonymous auth just to satisfy
-// Firestore security rules, and a debounced "snapshot everything, push it"
-// sync — simple and easy to reason about for a single-user food log.
+// app's lib/firebase.ts + lib/cloudSync.ts: one Firestore document per profile
+// (Aswath and Surekaa sync independently, never seeing each other's data),
+// anonymous auth just to satisfy Firestore security rules, and a debounced
+// "snapshot everything under this profile's prefix, push it" sync.
 import { firebaseConfig } from './firebase-config.js';
 
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
@@ -27,18 +26,29 @@ async function loadSdk() {
   return sdk;
 }
 
-// One well-known document — every device running Sappadu reads/writes the
-// same place, which is what makes this app usable across your own phone,
-// tablet, etc. Anonymous auth here is only to satisfy Firestore's security
-// rules (see firestore.rules); it does not partition the data.
-const DOC_PATH = ['appState', 'sappadu'];
-const LAST_SYNCED_KEY = '__cloudLastSyncedAt';
-// Deliberately excludes 'aiKey' (a personal Anthropic API credential that should
-// never leave the device it was entered on) and the migXxx one-time-migration
-// flags (local bookkeeping, not data — each device runs its own migrations
-// against whatever data it has, rather than inheriting "already migrated"
-// from a device that got there first).
-const SYNC_KEYS = ['profile','days','weights','customFoods','favs','freq','recent','dietPref','reminders','theme'];
+// A collection separate from the workout app's `appState` — in case the same
+// Firebase project ends up backing both apps, a shared collection name would
+// otherwise let Sappadu's per-profile docs collide with the workout app's.
+const COLLECTION = 'sappaduState';
+// Never synced: the migXxx one-time-migration flags (local bookkeeping, not
+// data), 'aiKey' (a personal Anthropic API credential that should never leave
+// the device it was entered on), and the sync bookkeeping key itself.
+const EXCLUDED_SUFFIXES = new Set(['aiKey', 'aiModel', 'migWaterMl']);
+
+function lastSyncedKey(prefix) { return `${prefix}cloud_last_synced_at`; }
+
+function snapshotLocal(prefix) {
+  const snap = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(prefix)) continue;
+    const suffix = k.slice(prefix.length);
+    if (suffix === 'cloud_last_synced_at' || EXCLUDED_SUFFIXES.has(suffix)) continue;
+    const v = localStorage.getItem(k);
+    if (v !== null) snap[k] = v;
+  }
+  return snap;
+}
 
 let db = null, authReady = null, fns = null;
 
@@ -59,60 +69,66 @@ async function ensureInit() {
   return db;
 }
 
-function snapshotLocal() {
-  const snap = {};
-  for (const k of SYNC_KEYS) {
-    const v = localStorage.getItem(k);
-    if (v !== null) snap[k] = v;
-  }
-  return snap;
+const pushTimers = new Map(); // prefix -> timer
+const applyingRemote = new Set(); // prefixes currently being written by a pull, to avoid echoing straight back up
+
+function schedulePush(profileId, prefix) {
+  if (applyingRemote.has(prefix)) return;
+  clearTimeout(pushTimers.get(prefix));
+  pushTimers.set(prefix, setTimeout(() => pushNow(profileId, prefix), 1500));
 }
 
-let pushTimer = null;
-let applyingRemote = false;
-function schedulePush() {
-  if (!isFirebaseConfigured || applyingRemote) return;
-  clearTimeout(pushTimer);
-  pushTimer = setTimeout(pushNow, 1500);
-}
-async function pushNow() {
+async function pushNow(profileId, prefix) {
   if (!(await ensureInit())) return;
   await authReady;
   const { doc, setDoc, serverTimestamp } = fns;
   try {
-    await setDoc(doc(db, ...DOC_PATH), { data: snapshotLocal(), updatedAt: serverTimestamp() });
-    localStorage.setItem(LAST_SYNCED_KEY, String(Date.now()));
+    await setDoc(doc(db, COLLECTION, profileId), { data: snapshotLocal(prefix), updatedAt: serverTimestamp() });
+    localStorage.setItem(lastSyncedKey(prefix), String(Date.now()));
   } catch (e) { console.warn('[sappadu-sync] push failed', e); }
 }
 
-// Call once at startup, before the first render — pulls the latest cloud
-// snapshot into localStorage if it's newer than what's already here.
-export async function pullOnce() {
+// Call once at startup, before the first render — pulls the given profile's
+// latest cloud snapshot into localStorage if it's newer than what's already
+// here. Only ever touches that one profile's own document/prefix.
+export async function pullProfile(profileId, prefix) {
   if (!(await ensureInit())) return;
   await authReady;
   const { doc, getDoc } = fns;
   try {
-    const snap = await getDoc(doc(db, ...DOC_PATH));
-    if (!snap.exists()) { await pushNow(); return; } // nothing in the cloud yet — seed it
+    const snap = await getDoc(doc(db, COLLECTION, profileId));
+    if (!snap.exists()) { await pushNow(profileId, prefix); return; } // nothing in the cloud yet — seed it
     const remote = snap.data();
     const remoteMs = remote.updatedAt?.toMillis() ?? 0;
-    const localMs = Number(localStorage.getItem(LAST_SYNCED_KEY) || 0);
+    const localMs = Number(localStorage.getItem(lastSyncedKey(prefix)) || 0);
     if (remoteMs <= localMs) return;
-    applyingRemote = true;
+    applyingRemote.add(prefix);
     for (const [k, v] of Object.entries(remote.data || {})) localStorage.setItem(k, v);
-    localStorage.setItem(LAST_SYNCED_KEY, String(remoteMs));
-    applyingRemote = false;
+    localStorage.setItem(lastSyncedKey(prefix), String(remoteMs));
+    applyingRemote.delete(prefix);
   } catch (e) { console.warn('[sappadu-sync] pull failed', e); }
 }
 
-// Call once at startup — patches localStorage so any future write to a
-// synced key gets pushed to the cloud automatically (debounced).
+const writablePrefixes = new Map(); // prefix -> profileId
 let patched = false;
-export function watchLocalStorage() {
-  if (!isFirebaseConfigured || patched) return;
+
+// Call once at startup — patches localStorage so any future write under this
+// profile's prefix gets pushed to its own cloud document automatically
+// (debounced). Safe to call for only the currently-active profile; the other
+// profile's data on this device (if any, from a previous switch) is never
+// watched or pushed until someone actually switches back to it.
+export function watchProfile(profileId, prefix) {
+  if (!isFirebaseConfigured) return;
+  writablePrefixes.set(prefix, profileId);
+  if (patched) return;
   patched = true;
   const rawSet = localStorage.setItem.bind(localStorage);
   const rawRemove = localStorage.removeItem.bind(localStorage);
-  localStorage.setItem = (k, v) => { rawSet(k, v); if (SYNC_KEYS.includes(k)) schedulePush(); };
-  localStorage.removeItem = (k) => { rawRemove(k); if (SYNC_KEYS.includes(k)) schedulePush(); };
+  const maybeSchedule = (k) => {
+    for (const [prefix, profileId] of writablePrefixes) {
+      if (k.startsWith(prefix) && k !== lastSyncedKey(prefix)) schedulePush(profileId, prefix);
+    }
+  };
+  localStorage.setItem = (k, v) => { rawSet(k, v); maybeSchedule(k); };
+  localStorage.removeItem = (k) => { rawRemove(k); maybeSchedule(k); };
 }

@@ -1,17 +1,21 @@
 rules_version = '2';
 
-// Sappadu keeps everything in one well-known document — there's no per-person
-// profile split (unlike the workout app's per-profile documents), so this is
-// intentionally a single locked-down path rather than a per-user pattern.
-// Anonymous auth (see firebase-sync.js) exists ONLY to satisfy the `request.auth
-// != null` check below — it does not partition data, every signed-in device
-// (anonymous or not) shares the same document.
+// Sappadu keeps one Firestore document per profile — sappaduState/aswath and
+// sappaduState/surekaa — so the two of you sync completely independently,
+// never seeing or overwriting each other's data. A separate collection name
+// (not `appState`) is used deliberately, in case the same Firebase project
+// ends up backing the workout app too, which uses `appState/{profileId}`.
+//
+// Anonymous auth (see firebase-sync.js) exists ONLY to satisfy the
+// `request.auth != null` check below — it does not partition data; both
+// profiles are reachable by any signed-in (including anonymous) device,
+// same as the workout app's model.
 //
 // To use: Firebase console -> Firestore Database -> Rules -> paste this in.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /appState/sappadu {
-      allow read, write: if request.auth != null;
+    match /sappaduState/{profileId} {
+      allow read, write: if request.auth != null && profileId in ['aswath', 'surekaa'];
     }
     // Everything else stays locked down by default.
     match /{document=**} {
