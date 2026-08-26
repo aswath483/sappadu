@@ -109,6 +109,32 @@ export async function pullProfile(profileId, prefix) {
   } catch (e) { console.warn('[sappadu-sync] pull failed', e); }
 }
 
+// Read-only look at another profile's cloud document — never writes anything,
+// never touches localStorage, and doesn't seed the doc if it's missing (unlike
+// pullProfile, which is allowed to seed since it's only ever called for your
+// own active profile). Used for couple-facing features like comparing today's
+// progress, where you want the other profile's data without switching
+// identity or risking overwriting theirs from a stale local copy.
+export async function peekProfile(profileId) {
+  if (!(await ensureInit())) return null;
+  await authReady;
+  const { doc, getDoc } = fns;
+  try {
+    const snap = await getDoc(doc(db, COLLECTION, profileId));
+    if (!snap.exists()) return null;
+    return (snap.data() || {}).data || null;
+  } catch (e) { console.warn('[sappadu-sync] peek failed', e); return null; }
+}
+
+// Snapshot of where sync stands for this profile, for a small status line in
+// the UI. Synchronous/cheap — meant to be read fresh on each render rather
+// than subscribed to.
+export function syncStatus(prefix) {
+  if (!isFirebaseConfigured) return null;
+  const lastSyncedAt = Number(localStorage.getItem(lastSyncedKey(prefix)) || 0) || null;
+  return { online: navigator.onLine, pending: pushTimers.has(prefix), lastSyncedAt };
+}
+
 const writablePrefixes = new Map(); // prefix -> profileId
 let patched = false;
 

@@ -226,7 +226,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.01em}
 <input type="file" id="photoInput" accept="image/*" capture="environment" class="hide" />
 
 <script type="module">
-import { isFirebaseConfigured, pullProfile, watchProfile } from './firebase-sync.js';
+import { isFirebaseConfigured, pullProfile, watchProfile, peekProfile, syncStatus } from './firebase-sync.js';
 /* ============================================================
    Sappadu — South Indian Nutrition Tracker (offline mobile PWA)
 ============================================================ */
@@ -291,6 +291,8 @@ function migrateGoalScheme(){
 }
 const todayKey=(d=new Date())=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10);};
 const fmt=n=>Math.round(n||0).toLocaleString('en-IN');
+function timeAgo(ms){const s=Math.max(0,Math.round((Date.now()-ms)/1000));
+  if(s<60)return'just now';if(s<3600)return Math.round(s/60)+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';return Math.round(s/86400)+'d ago';}
 function haptic(p=8){ if(store.get('haptics',true)&&navigator.vibrate){try{navigator.vibrate(p);}catch(e){}} }
 
 /* ---- Food DB : per 100 g ----
@@ -583,8 +585,30 @@ let state={
 };
 function dayData(date=state.date){const all=store.get('days',{});return all[date]||{log:[],water:0,steps:0};}
 function saveDay(date,d){const all=store.get('days',{});all[date]=d;store.set('days',all);}
-function streak(){const days=store.get('days',{});const kc=k=>{const dd=days[k];return dd?dd.log.reduce((a,x)=>a+x.m.kcal,0):0;};
+function streakFromDays(days){const kc=k=>{const dd=days[k];return dd?dd.log.reduce((a,x)=>a+x.m.kcal,0):0;};
   let s=0,i=(kc(todayKey())===0)?1:0;for(;;i++){if(kc(todayKey(new Date(Date.now()-i*864e5)))>0)s++;else break;}return s;}
+function streak(){return streakFromDays(store.get('days',{}));}
+// Reads the other profile's today snapshot for the Home "vs partner" card.
+// Tries this device's own localStorage first (works instantly if the two of
+// you share one device), and only falls back to a read-only cloud peek if
+// that's empty and Firebase is configured — never writes anything, never
+// switches identity.
+async function getPartnerSnapshot(){
+  const other=PROFILES.find(x=>x.id!==activeProfileId).id,prefix=profileKeyPrefix(other);
+  let daysRaw=localStorage.getItem(prefix+'days'),profileRaw=localStorage.getItem(prefix+'profile');
+  if((!daysRaw||!profileRaw)&&isFirebaseConfigured){
+    const remote=await peekProfile(other);
+    if(remote){daysRaw=daysRaw||remote[prefix+'days'];profileRaw=profileRaw||remote[prefix+'profile'];}
+  }
+  if(!daysRaw||!profileRaw)return null;
+  try{
+    const days=JSON.parse(daysRaw),profile=JSON.parse(profileRaw);
+    const today=days[todayKey()]||{log:[],type:'train'};
+    const eaten=today.log.reduce((a,x)=>a+x.m.kcal,0);
+    const g=calcGoals(profile,today.type||'train');
+    return {id:other,label:profileLabel(other),eaten,goal:g.cal,streak:streakFromDays(days)};
+  }catch(e){return null;}
+}
 function weightHistory(){return store.get('weights',[]);}
 
 // Same philosophy as the workout app's goal system: Recomposition is a MILD
@@ -781,6 +805,18 @@ function renderHome(scr){
   suggestCard.onclick=()=>{haptic();openSuggestSheet(remMacros);};
   scr.appendChild(suggestCard);
 
+  const partnerSlot=el(`<div class="card hide" style="margin-bottom:14px" id="partnerCard"></div>`);
+  scr.appendChild(partnerSlot);
+  getPartnerSnapshot().then(p=>{
+    if(!p)return;
+    partnerSlot.classList.remove('hide');
+    const mine=Math.round(Math.min(1,tot.kcal/g.cal)*100),theirs=Math.round(Math.min(1,p.eaten/p.goal)*100);
+    partnerSlot.innerHTML=`<div class="card-title">👫 Today vs ${p.label}</div>
+      <div class="row-between" style="padding:4px 0"><span>You</span><b>${fmt(tot.kcal)} / ${fmt(g.cal)} kcal · ${mine}%</b></div>
+      <div class="row-between" style="padding:4px 0"><span>${p.label}</span><b>${fmt(p.eaten)} / ${fmt(p.goal)} kcal · ${theirs}%</b></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">🔥 Streak — you: ${streak()} · ${p.label}: ${p.streak}</div>`;
+  });
+
   // quick add
   const quickIds=[...new Set([...Object.entries(state.freq).sort((a,b)=>b[1]-a[1]).map(([id])=>id.match(/^\d+$/)?+id:id),...state.recent])].slice(0,8);
   if(quickIds.length){
@@ -867,6 +903,58 @@ function quickLog(f){
 function bumpRecent(id){state.recent=[id,...state.recent.filter(x=>x!==id)].slice(0,20);store.set('recent',state.recent);
   state.freq[id]=(state.freq[id]||0)+1;store.set('freq',state.freq);}
 
+/* ---------------- Saved meals (combos you log often) ---------------- */
+function openSaveMealSheet(items){
+  const totalKcal=items.reduce((a,x)=>a+x.m.kcal,0);
+  const sheet=el(`<div class="sheet"><div class="sheet-grab"></div>
+    <div class="sheet-head"><h3 style="flex:1">Save as a meal</h3><button class="icon-btn" id="cls">✕</button></div>
+    <div class="sheet-body">
+      <div class="muted" style="font-size:13px;padding:0 4px 10px">Saves ${items.length} item${items.length>1?'s':''} (${fmt(totalKcal)} kcal) so you can log all of it again in one tap.</div>
+      <div class="field"><label>Name</label><input id="nm" placeholder="My usual breakfast" autocomplete="off"></div>
+      <div style="padding:8px 4px"><button class="btn btn-primary" id="save">Save meal</button></div>
+    </div></div>`);
+  sheet.querySelector('#cls').onclick=closeSheet;
+  sheet.querySelector('#save').onclick=()=>{
+    const name=$('#nm',sheet).value.trim();if(!name){toast('Give it a name');return;}
+    const meals=store.get('savedMeals',[]);
+    meals.push({id:Date.now()+''+Math.random(),name,items:items.map(x=>({id:x.id,name:x.name,emoji:x.emoji,portion:x.portion,grams:x.grams,m:x.m}))});
+    store.set('savedMeals',meals);haptic();closeSheet();toast('Meal saved');
+  };
+  openSheet(sheet);
+}
+function quickLogMeal(sm,meal){
+  const dd=dayData();const uids=[];
+  sm.items.forEach((it,i)=>{const uid=Date.now()+''+Math.random()+i;uids.push(uid);
+    dd.log.push({uid,id:it.id,name:it.name,emoji:it.emoji,meal,portion:it.portion,grams:it.grams,m:it.m});
+    bumpRecent(it.id);});
+  saveDay(state.date,dd);render();
+  toast(`${sm.name} → ${meal}`,{label:'Undo',fn:()=>{const d2=dayData();d2.log=d2.log.filter(x=>!uids.includes(x.uid));saveDay(state.date,d2);render();}});
+}
+function openSavedMealsSheet(meal){
+  const sheet=el(`<div class="sheet"><div class="sheet-grab"></div>
+    <div class="sheet-head"><h3 style="flex:1">My meals</h3><button class="icon-btn" id="cls">✕</button></div>
+    <div class="sheet-body" id="smList"></div></div>`);
+  sheet.querySelector('#cls').onclick=closeSheet;
+  const list=sheet.querySelector('#smList');
+  function paint(){
+    list.innerHTML='';
+    const saved=store.get('savedMeals',[]);
+    if(!saved.length){list.appendChild(el(`<div class="empty"><div class="e-emoji">📚</div>No saved meals yet.<br>Save one with the 💾 button on any meal in your Diary.</div>`));return;}
+    saved.forEach(sm=>{
+      const kcal=sm.items.reduce((a,x)=>a+x.m.kcal,0);
+      const row=el(`<div class="food-row"><div class="food-emoji">${sm.items[0]?sm.items[0].emoji:'🍽️'}</div>
+        <div class="fr-t"><b>${sm.name}</b><small>${sm.items.map(x=>x.name).join(', ')}</small></div>
+        <div class="fr-k"><b>${fmt(kcal)}</b><br><span class="muted" style="font-size:11px">kcal</span></div></div>`);
+      const del=el(`<button class="icon-btn" style="width:34px;height:34px;font-size:14px;box-shadow:none;flex:none">🗑️</button>`);
+      del.onclick=e=>{e.stopPropagation();store.set('savedMeals',store.get('savedMeals',[]).filter(x=>x.id!==sm.id));haptic();paint();};
+      row.appendChild(del);
+      row.onclick=()=>{haptic(15);closeSheet();quickLogMeal(sm,meal);};
+      list.appendChild(row);
+    });
+  }
+  paint();openSheet(sheet);
+}
+
 /* ---------------- SHEETS ---------------- */
 let sheetEl=null,scrimEl=null,activeStream=null;
 function openSheet(node){closeSheet();scrimEl=el(`<div class="scrim"></div>`);scrimEl.onclick=closeSheet;
@@ -898,6 +986,7 @@ function openAddSheet(meal){
       <div class="tool-row">
         <button class="tool" id="scan"><span class="ti">📷</span>Scan barcode</button>
         <button class="tool" id="photo"><span class="ti">📸</span>Photo meal</button>
+        <button class="tool" id="myMeals"><span class="ti">📚</span>My meals</button>
         <button class="tool" id="create"><span class="ti">➕</span>Custom food</button>
       </div>
       <div class="chips" id="chips"></div><div id="results"></div></div></div>`);
@@ -905,6 +994,7 @@ function openAddSheet(meal){
   sheet.querySelector('#scan').onclick=()=>openScanner(guess);
   sheet.querySelector('#photo').onclick=()=>openPhoto(guess);
   sheet.querySelector('#create').onclick=()=>openCustomFood(guess);
+  sheet.querySelector('#myMeals').onclick=()=>openSavedMealsSheet(guess);
   const dietSeg=sheet.querySelector('#dietSeg');
   dietSeg.querySelectorAll('button').forEach(b=>{b.onclick=()=>{haptic();diet=b.dataset.d;store.set('dietPref',diet);
     dietSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');paint();};});
@@ -1254,8 +1344,10 @@ function renderDiary(scr){
   MEALS.forEach(([name,emoji])=>{const items=d.log.filter(x=>x.meal===name);if(!items.length)return;
     const meal=el(`<div class="meal"><div class="meal-head"><div class="meal-emoji">${emoji}</div>
       <div class="t"><b>${name}</b><small>${items.length} items</small></div><div class="kc">${fmt(items.reduce((a,x)=>a+x.m.kcal,0))} kcal</div>
+      <button class="icon-btn" id="saveMeal" style="width:34px;height:34px;font-size:15px;box-shadow:none">💾</button>
       <button class="add-btn">+</button></div></div>`);
     meal.querySelector('.add-btn').onclick=e=>{e.stopPropagation();openAddSheet(name);};
+    meal.querySelector('#saveMeal').onclick=e=>{e.stopPropagation();openSaveMealSheet(items);};
     items.forEach(it=>meal.appendChild(logRow(it)));scr.appendChild(meal);});
 }
 
@@ -1339,8 +1431,14 @@ function renderProfile(scr){
 
   const pc=el(`<div class="card" style="margin:12px 0 0"><div class="card-title">Profile</div>
     <div class="row-between" style="padding:6px 0"><span class="muted">Signed in as</span><b>${profileLabel(activeProfileId)}</b></div>
+    ${isFirebaseConfigured?`<div class="row-between" style="padding:6px 0"><span class="muted">Cloud sync</span><b id="syncLbl" style="font-weight:600;font-size:13px">…</b></div>`:''}
     <button class="btn btn-tonal" id="swp" style="margin-top:6px">🔁 Switch to ${profileLabel(PROFILES.find(x=>x.id!==activeProfileId).id)}</button></div>`);
   pc.querySelector('#swp').onclick=()=>{const other=PROFILES.find(x=>x.id!==activeProfileId).id;if(confirm(`Switch to ${profileLabel(other)}'s profile?`))switchProfile(other);};
+  if(isFirebaseConfigured){
+    const st=syncStatus(profileKeyPrefix(activeProfileId));
+    const lbl=pc.querySelector('#syncLbl');
+    lbl.textContent=!st.online?'📴 Offline':st.pending?'⏳ Syncing…':st.lastSyncedAt?`🔄 Synced ${timeAgo(st.lastSyncedAt)}`:'⏳ Not synced yet';
+  }
   scr.appendChild(pc);
 
   const sc=el(`<div class="card" style="margin:12px 0 0"><div class="card-title">Storage</div><div id="scBody" class="muted" style="font-size:13px">Checking…</div></div>`);
@@ -1459,6 +1557,7 @@ function renderOnboarding(){
 /* ---------------- Install prompt ---------------- */
 let installReady=false,deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;installReady=true;if(state.profile&&state.tab==='home')render();});
+['online','offline'].forEach(ev=>window.addEventListener(ev,()=>{if(state.profile&&state.tab==='profile')render();}));
 function installBanner(){
   const b=el(`<div class="install-banner"><div style="font-size:22px">📲</div>
     <div class="ib-t"><b>Install Sappadu</b><div class="muted">Add to home screen for full-screen, offline use</div></div>
