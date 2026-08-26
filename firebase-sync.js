@@ -55,18 +55,31 @@ let db = null, authReady = null, fns = null;
 async function ensureInit() {
   if (!isFirebaseConfigured) return null;
   if (db) return db;
-  const { initializeApp, getAuth, onAuthStateChanged, signInAnonymously, initializeFirestore, doc, getDoc, setDoc, serverTimestamp } = await loadSdk();
-  fns = { doc, getDoc, setDoc, serverTimestamp };
-  const app = initializeApp(firebaseConfig);
-  db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
-  const auth = getAuth(app);
-  authReady = new Promise((resolve) => {
-    onAuthStateChanged(auth, (user) => {
-      if (user) resolve(user.uid);
-      else signInAnonymously(auth).catch(() => resolve(null));
+  // Everything here can fail on a bad connection (the dynamic SDK imports
+  // fetch from gstatic.com, initializeApp/Firestore can throw on a malformed
+  // config) — caught so a network hiccup returns null (every caller already
+  // treats that as "sync unavailable right now") instead of throwing out of
+  // ensureInit uncaught, which would otherwise reject the pullProfile() call
+  // the app bootstrap races at startup and skip every line after it —
+  // including render() — leaving a blank screen.
+  try {
+    const { initializeApp, getAuth, onAuthStateChanged, signInAnonymously, initializeFirestore, doc, getDoc, setDoc, serverTimestamp } = await loadSdk();
+    fns = { doc, getDoc, setDoc, serverTimestamp };
+    const app = initializeApp(firebaseConfig);
+    db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+    const auth = getAuth(app);
+    authReady = new Promise((resolve) => {
+      onAuthStateChanged(auth, (user) => {
+        if (user) resolve(user.uid);
+        else signInAnonymously(auth).catch(() => resolve(null));
+      });
     });
-  });
-  return db;
+    return db;
+  } catch (e) {
+    console.warn('[sappadu-sync] init failed', e);
+    db = null;
+    return null;
+  }
 }
 
 const pushTimers = new Map(); // prefix -> timer
