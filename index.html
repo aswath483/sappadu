@@ -1569,6 +1569,17 @@ function renderOnboarding(){
   form.appendChild(goalField);
   const customField=el(`<div class="field ${p.goal==='custom'?'':'hide'}"><label>Custom daily calories</label><input id="customCal" inputmode="numeric" placeholder="e.g. 2000" value="${p.customCal||''}"></div>`);
   customField.querySelector('#customCal').oninput=e=>{p.customCal=parseInt(e.target.value)||0;updatePreview();};form.appendChild(customField);
+  let diet=dietPref();
+  const dietField=el(`<div class="field"><label>Food preference</label>
+    <div class="seg" id="dietSeg">
+      <button class="${diet==='veg'?'on':''}" data-d="veg">🟢 Veg</button>
+      <button class="${diet==='egg'?'on':''}" data-d="egg">🥚 +Egg</button>
+      <button class="${diet==='all'?'on':''}" data-d="all">🍗 All</button>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin:8px 2px 0">Used to filter food search and suggestions — including auto-fill, which only ever picks from foods matching this.</p></div>`);
+  dietField.querySelectorAll('#dietSeg button').forEach(b=>{b.onclick=()=>{haptic();diet=b.dataset.d;store.set('dietPref',diet);
+    dietField.querySelectorAll('#dietSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');};});
+  form.appendChild(dietField);
   const gf=el(`<div class="field"><label>Gender</label><div class="chip-select" id="gen"></div></div>`);
   [['male','Male'],['female','Female']].forEach(([v,l])=>{const b=el(`<button class="${p.gender===v?'on':''}">${l}</button>`);b.onclick=()=>{haptic();p.gender=v;gf.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');updatePreview();};gf.querySelector('#gen').appendChild(b);});
   form.appendChild(gf);
