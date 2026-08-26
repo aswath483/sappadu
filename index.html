@@ -219,7 +219,8 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.01em}
 <div id="toast" class="toast"></div>
 <input type="file" id="photoInput" accept="image/*" capture="environment" class="hide" />
 
-<script>
+<script type="module">
+import { isFirebaseConfigured, pullOnce, watchLocalStorage } from './firebase-sync.js';
 /* ============================================================
    Sappadu — South Indian Nutrition Tracker (offline mobile PWA)
 ============================================================ */
@@ -247,6 +248,16 @@ function migrateWaterToMl(){
   Object.keys(days).forEach(k=>{const d=days[k];if(d&&typeof d.water==='number'&&d.water>0&&d.water<50){d.water=d.water*250;changed=true;}});
   if(changed)store.set('days',days);
   store.set('migWaterMl',true);
+}
+// Old goal scheme (loss/maintain/lean/gain/custom) -> new one that matches the
+// workout app's Recomposition / Fat Loss Focus / Build Muscle framing.
+// No run-once flag needed (unlike migrateWaterToMl) — GOAL_MIGRATION only ever
+// remaps old string values, so running this again on already-migrated data (or
+// on a profile pulled from the cloud) is a safe no-op.
+const GOAL_MIGRATION={loss:'fatloss',lean:'muscle',gain:'muscle'};
+function migrateGoalScheme(){
+  const p=store.get('profile',null);
+  if(p&&GOAL_MIGRATION[p.goal]){p.goal=GOAL_MIGRATION[p.goal];store.set('profile',p);}
 }
 const todayKey=(d=new Date())=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10);};
 const fmt=n=>Math.round(n||0).toLocaleString('en-IN');
@@ -519,6 +530,7 @@ function defaultPortion(f){const ps=portionsFor(f);let i=ps.findIndex(p=>/^1 /.t
 
 const MEALS=[["Breakfast","🌅"],["Lunch","🍛"],["Dinner","🌙"],["Snacks","🍎"],["Drinks","🥤"],["Dessert","🍬"],["Pre Workout","⚡"],["Post Workout","💪"]];
 
+migrateGoalScheme(); // must run before `state` below reads profile from storage
 let state={
   profile:store.get('profile',null),theme:store.get('theme','light'),
   tab:'home',date:todayKey(),_animate:true,
@@ -530,15 +542,24 @@ function streak(){const days=store.get('days',{});const kc=k=>{const dd=days[k];
   let s=0,i=(kc(todayKey())===0)?1:0;for(;;i++){if(kc(todayKey(new Date(Date.now()-i*864e5)))>0)s++;else break;}return s;}
 function weightHistory(){return store.get('weights',[]);}
 
+// Same philosophy as the workout app's goal system: Recomposition is a MILD
+// deficit (10-15% below maintenance, not an aggressive cut) since the point is
+// losing fat and building muscle at once; Fat Loss Focus takes a real deficit;
+// Build Muscle runs a lean surplus. Deficits/surplus scale with TDEE (% based)
+// rather than a flat kcal number, so they stay reasonable at any body size.
+// Protein follows the same 1.6-2.2 g/kg range, biased toward the top of it for
+// goals that lean on protein most (recomp, muscle) per that same reasoning.
+const GOAL_ADJ_PCT={maintain:0,recomp:-0.12,fatloss:-0.20,muscle:0.12,custom:0};
+const GOAL_PROTEIN_PER_KG={maintain:1.6,recomp:2.0,fatloss:1.8,muscle:2.2,custom:1.8};
 function calcGoals(p,dayType){
   const activity=dayType==='rest'?Math.max(1.2,p.activity-0.15):p.activity;
   const s=p.gender==='male'?5:-161;
   const bmr=10*p.weight+6.25*p.height-5*p.age+s;
   const tdee=bmr*activity;
-  const adj={loss:-500,maintain:0,lean:200,gain:400,custom:0}[p.goal]??0;
-  let cal=Math.round((tdee+adj)/10)*10;
+  const pct=GOAL_ADJ_PCT[p.goal]??0;
+  let cal=Math.round((tdee*(1+pct))/10)*10;
   if(p.goal==='custom'&&p.customCal)cal=dayType==='rest'?Math.max(Math.round(bmr),p.customCal-300):p.customCal;
-  const protein=Math.round(p.weight*(p.goal==='gain'||p.goal==='lean'?2:1.6));
+  const protein=Math.round(p.weight*(GOAL_PROTEIN_PER_KG[p.goal]??1.6));
   const fat=Math.round(cal*0.25/9);
   const carbs=Math.round((cal-protein*4-fat*9)/4);
   return {cal,protein,carbs,fat,fibre:30,water:waterTargetMl(p),tdee:Math.round(tdee),bmr:Math.round(bmr)};
@@ -1184,7 +1205,7 @@ function renderProfile(scr){
       <div class="pill">😴 Rest ${fmt(gr.cal)}</div></div>
     <div class="muted" style="margin-top:10px;font-size:12px">BMR ${fmt(g.bmr)} · Maintenance ${fmt(g.tdee)} kcal</div></div>`));
   const card=el(`<div class="card" style="margin:0"><div class="card-title">Your details</div></div>`);
-  [['Goal',{loss:'Fat loss',maintain:'Maintenance',lean:'Lean bulk',gain:'Muscle gain',custom:'Custom'}[p.goal]],['Age',p.age+' yrs'],['Gender',p.gender],['Height',p.height+' cm'],['Weight',p.weight+' kg'],['Activity',{1.2:'Sedentary',1.375:'Light',1.55:'Moderate',1.725:'Active',1.9:'Very active'}[p.activity]]]
+  [['Goal',{maintain:'Maintenance',recomp:'Recomposition',fatloss:'Fat Loss Focus',muscle:'Build Muscle',custom:'Custom'}[p.goal]],['Age',p.age+' yrs'],['Gender',p.gender],['Height',p.height+' cm'],['Weight',p.weight+' kg'],['Activity',{1.2:'Sedentary',1.375:'Light',1.55:'Moderate',1.725:'Active',1.9:'Very active'}[p.activity]]]
     .forEach(([k,v],i,a)=>card.appendChild(el(`<div class="wk-stat" ${i===a.length-1?'style="border:none"':''}><span class="muted">${k}</span><b style="text-transform:capitalize">${v}</b></div>`)));
   scr.appendChild(card);
 
@@ -1256,9 +1277,18 @@ function renderOnboarding(){
     <h2 style="text-align:center;font-size:24px">Sappadu</h2>
     <p class="muted" style="text-align:center;margin:6px 0 18px;font-size:14px">Track calories & macros the South Indian way. Let's set your goal.</p></div>`);
   const form=el(`<div></div>`);
-  const goalField=el(`<div class="field"><label>Goal</label><div class="chip-select" id="goal"></div></div>`);
-  [['loss','Fat loss'],['maintain','Maintenance'],['lean','Lean bulk'],['gain','Muscle gain'],['custom','Custom']].forEach(([v,l])=>{
-    const b=el(`<button class="${p.goal===v?'on':''}">${l}</button>`);b.onclick=()=>{haptic();p.goal=v;goalField.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');customField.classList.toggle('hide',v!=='custom');updatePreview();};goalField.querySelector('#goal').appendChild(b);});
+  const GOAL_DESC={
+    maintain:'Steady calories at maintenance — no cut, no surplus.',
+    recomp:'Lose fat and build muscle at the same time. Best default if you’re newer to training — a mild deficit, not an aggressive cut.',
+    fatloss:'Prioritizes fat loss with a real, sustainable deficit.',
+    muscle:'Prioritizes strength and size with a lean surplus.',
+    custom:'Set your own daily calorie target.',
+  };
+  const goalField=el(`<div class="field"><label>Goal</label><div class="chip-select" id="goal"></div>
+    <p class="muted" id="goalDesc" style="font-size:12.5px;margin:8px 2px 0">${GOAL_DESC[p.goal]||''}</p></div>`);
+  [['maintain','Maintenance'],['recomp','Recomposition'],['fatloss','Fat Loss Focus'],['muscle','Build Muscle'],['custom','Custom']].forEach(([v,l])=>{
+    const b=el(`<button class="${p.goal===v?'on':''}">${l}</button>`);b.onclick=()=>{haptic();p.goal=v;goalField.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+      goalField.querySelector('#goalDesc').textContent=GOAL_DESC[v]||'';customField.classList.toggle('hide',v!=='custom');updatePreview();};goalField.querySelector('#goal').appendChild(b);});
   form.appendChild(goalField);
   const customField=el(`<div class="field ${p.goal==='custom'?'':'hide'}"><label>Custom daily calories</label><input id="customCal" inputmode="numeric" placeholder="e.g. 2000" value="${p.customCal||''}"></div>`);
   customField.querySelector('#customCal').oninput=e=>{p.customCal=parseInt(e.target.value)||0;updatePreview();};form.appendChild(customField);
@@ -1302,10 +1332,31 @@ function installBanner(){
   return b;
 }
 
+// Re-reads the fields `state` cached at parse time — needed after a cloud
+// pull may have overwritten localStorage out from under that initial read.
+function resyncStateFromStore(){
+  state.profile=store.get('profile',null);
+  state.theme=store.get('theme','light');
+  state.recent=store.get('recent',[]);
+  state.favs=store.get('favs',[]);
+  state.freq=store.get('freq',{});
+}
+
 initStorage();
 migrateWaterToMl();
-render();
-if('serviceWorker'in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
+(async()=>{
+  if(isFirebaseConfigured){
+    // Race the pull against a timeout so a slow/broken connection never blocks
+    // first paint — worst case we render local data and sync catches up later.
+    await Promise.race([pullOnce(), new Promise(r=>setTimeout(r,2500))]);
+    migrateWaterToMl();
+    migrateGoalScheme();
+    resyncStateFromStore();
+    watchLocalStorage();
+  }
+  render();
+  if('serviceWorker'in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
+})();
 </script>
 </body>
 </html>
