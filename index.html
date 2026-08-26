@@ -253,227 +253,251 @@ const fmt=n=>Math.round(n||0).toLocaleString('en-IN');
 function haptic(p=8){ if(store.get('haptics',true)&&navigator.vibrate){try{navigator.vibrate(p);}catch(e){}} }
 
 /* ---- Food DB : per 100 g ----
- [name,cat,kcal,p,c,f,fib,sug,sod,unit,gPerUnit,ca,fe,emoji,aliases] */
+ [name,cat,kcal,p,c,f,fib,sug,sod,unit,gPerUnit,ca,fe,emoji,aliases,diet]
+ diet: 'veg' | 'egg' | 'nonveg' — used by the Veg/+Egg/All filter (dietAllowed). */
 const RAW=[
-["Idli","Breakfast",95,3,21,0.3,0.9,0.3,150,"pc",40,10,0.5,"🍥",["idly"]],
-["Mini Idli","Breakfast",95,3,21,0.3,0.9,0.3,150,"pc",15,10,0.5,"🍥",["button idli"]],
-["Sambar Idli","Breakfast",95,4,17,2,2,1.2,300,"pc",95,20,0.8,"🍲",["idli sambar"]],
-["Ragi Idli","Breakfast",100,3.5,21,0.6,3.5,0.4,150,"pc",42,130,2.2,"🟤",["finger millet idli"]],
-["Plain Dosa","Breakfast",230,4.5,32,8.5,1.5,0.6,230,"pc",60,14,0.8,"🥞",["dosai","dosa"]],
-["Masala Dosa","Breakfast",195,4.5,30,7,2,1.5,260,"pc",120,18,1.1,"🥞",[]],
-["Ghee Roast","Breakfast",225,4,30,10,1.5,0.6,260,"pc",95,16,0.9,"🥞",["ghee roast dosa"]],
-["Set Dosa","Breakfast",180,4.5,30,5,1.5,0.8,220,"pc",50,15,0.8,"🥞",[]],
-["Podi Dosa","Breakfast",230,5.5,28,11,2,0.7,320,"pc",80,20,1.4,"🥞",["podi idli dosa"]],
-["Rava Dosa","Breakfast",238,4,26,12,1,0.5,300,"pc",62,12,0.7,"🥞",["rawa dosa"]],
-["Poori","Breakfast",340,6,40,17,2,0.8,190,"pc",30,14,1.2,"🫓",["puri"]],
-["Chapati","Breakfast",260,7,42,7,7,1,300,"pc",40,25,2.5,"🫓",["roti","phulka"]],
-["Parotta","Breakfast",330,7,45,13,2,1,280,"pc",80,20,1.8,"🫓",["parota","porotta"]],
-["Aappam","Breakfast",130,2.5,26,1.5,1,2,120,"pc",55,10,0.5,"🥞",["appam"]],
-["Idiyappam","Breakfast",150,3,33,0.4,1.5,0.2,80,"pc",50,8,0.4,"🍜",["string hoppers","noolputtu"]],
-["Pongal","Breakfast",150,3.5,23,5.5,1.3,0.4,240,"bowl",0,18,1.1,"🍚",[]],
-["Ven Pongal","Breakfast",155,4.5,22,6,1.3,0.4,280,"bowl",0,20,1.3,"🍚",["khara pongal"]],
-["Upma","Breakfast",130,3,20,4.5,1.5,0.8,240,"bowl",0,14,0.9,"🍲",["uppuma"]],
-["Semiya Upma","Breakfast",150,3.5,25,4,1,0.9,220,"bowl",0,12,0.8,"🍜",["vermicelli upma"]],
-["Aval Upma","Breakfast",130,2.5,23,3.5,1.5,0.6,200,"bowl",0,10,1.4,"🍚",["poha","flattened rice"]],
-["Rava Kesari","Breakfast",320,4,45,14,0.8,22,60,"bowl",0,16,0.9,"🍮",["kesari bath","sheera"]],
-["Lemon Rice","Lunch",160,3,28,4.5,1.2,0.6,320,"bowl",0,12,1,"🍚",["chitranna"]],
-["Curd Rice","Lunch",105,3,15,3,0.4,1.8,220,"bowl",0,85,0.5,"🍚",["thayir sadam","mosaru anna"]],
-["Tomato Rice","Lunch",150,3,27,4,1.2,2,300,"bowl",0,14,1.2,"🍅",["thakkali sadam"]],
-["Coconut Rice","Lunch",200,3.5,26,9,2,1,280,"bowl",0,16,1.1,"🥥",["thengai sadam"]],
-["Puliyodarai","Lunch",170,3,30,5,1.5,3,360,"bowl",0,18,1.4,"🍚",["tamarind rice","puliyogare"]],
-["Sambar Rice","Lunch",130,4,23,2.5,2,1.5,310,"bowl",0,26,1.6,"🍲",["sambar sadam"]],
-["Rasam Rice","Lunch",110,3,21,1.5,1,1,300,"bowl",0,18,1.3,"🍲",["rasam sadam"]],
-["Bisibele Bath","Lunch",150,4.5,24,4,2.5,1,330,"bowl",0,28,1.8,"🍛",["bisi bele bath"]],
-["Vegetable Biryani","Lunch",140,4,22,4.5,2,2,280,"bowl",0,30,1.2,"🍛",["veg biryani","vegetable pulao"]],
-["White Rice","Lunch",130,2.7,28,0.3,0.4,0.1,1,"bowl",0,10,0.4,"🍚",["cooked rice","sadam","anna"]],
-["Brown Rice","Lunch",123,2.7,26,1,1.8,0.2,3,"bowl",0,10,0.6,"🍚",[]],
-["Millets","Lunch",120,3.5,23,1,3,0.3,4,"bowl",0,18,1.5,"🌾",["foxtail","kambu","varagu","siridhanya"]],
-["Ragi Mudde","Lunch",120,2.5,25,0.8,3.5,0.2,5,"pc",120,120,2.6,"🟤",["ragi ball","finger millet"]],
-["Curd","Snacks",60,3.1,4.7,3.3,0,4.7,46,"bowl",0,110,0.1,"🥛",["yogurt","thayir","mosaru"]],
-["Buttermilk","Drinks",40,2,4,1.5,0,3,150,"glass",0,90,0.1,"🥛",["moru","majjige","chaas"]],
-["Milk","Drinks",62,3.2,4.8,3.4,0,4.8,44,"glass",0,120,0.1,"🥛",["paal","haalu"]],
-["Paneer","Lunch",265,18,1.2,21,0,1.2,22,"bowl",0,480,0.2,"🧀",["cottage cheese"]],
-["Tofu","Lunch",145,15,2,8,0.5,0.6,12,"bowl",0,350,2.7,"🧊",["bean curd"]],
-["Greek Yogurt","Snacks",97,9,4,5,0,4,36,"bowl",0,110,0.1,"🥛",[]],
-["Egg","Snacks",155,13,1.1,11,0,1.1,124,"pc",50,56,1.8,"🥚",["whole egg","muttai"]],
-["Egg White","Snacks",52,11,0.7,0.2,0,0.7,166,"pc",33,7,0.1,"🥚",["egg whites"]],
-["Boiled Egg","Snacks",155,13,1.1,11,0,1.1,124,"pc",50,56,1.8,"🥚",["hard boiled egg"]],
-["Omelette","Snacks",157,11,1,13,0,0.5,200,"pc",115,55,1.8,"🍳",["omelet","egg omelette"]],
-["Protein Shake","Post Workout",120,24,3,1.5,0.5,2,90,"scoop",30,140,0.5,"🥤",["shake"]],
-["Whey Protein","Post Workout",400,80,8,6,1,3,300,"scoop",30,500,1.5,"💪",["whey","protein powder"]],
-["Soy Chunks","Lunch",145,14,8,0.5,5,0.5,20,"bowl",0,90,3.5,"🫘",["meal maker","soya chunks"]],
-["Chickpeas","Lunch",164,8.9,27,2.6,7.6,4.8,7,"bowl",0,49,2.9,"🫘",["chana","kabuli chana"]],
-["Green Gram","Lunch",105,7,19,0.4,7,2,6,"bowl",0,27,1.4,"🫘",["moong","pesalu","hesaru"]],
-["Black Channa","Lunch",160,8,27,3,10,3,10,"bowl",0,58,4.3,"🫘",["kala chana","kadala"]],
-["Rajma","Lunch",127,8.7,22.8,0.5,6.4,0.6,12,"bowl",0,80,2.9,"🫘",["kidney beans"]],
-["Dal","Lunch",120,6,18,3,3,1,280,"bowl",0,26,1.9,"🍲",["parippu","paruppu","toor dal","tovve"]],
-["Sambar","Lunch",65,3,10,2,2,2,300,"bowl",0,28,1.3,"🍲",[]],
-["Rasam","Lunch",40,1.5,6,1,1,1.5,300,"bowl",0,20,1.2,"🍵",["saaru","chaaru"]],
-["Kootu","Lunch",100,4,12,4,3,1.5,220,"bowl",0,40,1.8,"🍛",[]],
-["Poriyal","Lunch",110,3,12,5.5,4,2,200,"bowl",0,45,1.6,"🥗",["curry stir fry","palya"]],
-["Avial","Lunch",120,2.5,9,8,3,2,240,"bowl",0,42,1.2,"🥘",[]],
-["Kurma","Lunch",130,3,11,8,2,2,280,"bowl",0,38,1.4,"🍛",["korma"]],
-["Vegetable Curry","Lunch",110,2.5,10,7,3,2.5,260,"bowl",0,40,1.5,"🍛",["veg curry","mixed veg"]],
-["Potato Fry","Lunch",150,2,20,7,2,1,200,"bowl",0,14,0.9,"🥔",["urulai","aloo fry"]],
-["Beans Poriyal","Lunch",105,3,10,6,4,3,190,"bowl",0,42,1.4,"🫛",["beans curry"]],
-["Cabbage Poriyal","Lunch",95,2.5,9,6,3,3,190,"bowl",0,45,1,"🥬",["cabbage curry"]],
-["Ladies Finger Fry","Lunch",120,2,11,8,4,2,160,"bowl",0,80,1.5,"🥒",["bhindi fry","vendakkai"]],
-["Beetroot Poriyal","Lunch",105,2,13,6,3,6,170,"bowl",0,22,1,"🟣",["beetroot curry"]],
-["Cauliflower Poriyal","Lunch",110,2.5,9,7.5,3,2,190,"bowl",0,25,0.6,"🥦",["gobi","gobhi","cauliflower curry","gobi poriyal"]],
-["Carrot Poriyal","Lunch",115,2,12,7,3,5,180,"bowl",0,30,0.4,"🥕",["carrot curry","gajar poriyal"]],
-["Brinjal Curry","Lunch",100,1.5,9,6,3,3,220,"bowl",0,20,0.5,"🍆",["eggplant","kathirikai","vankaya","baingan","brinjal fry"]],
-["Bottle Gourd Curry","Lunch",45,1,6,1.5,1.5,2,180,"bowl",0,18,0.3,"🥒",["sorakkai","lauki","sorekai","lauki curry"]],
-["Ridge Gourd Curry","Lunch",50,1.2,6,2,2,2,180,"bowl",0,18,0.3,"🥒",["peerkangai","beerakaya","heerekai"]],
-["Snake Gourd Curry","Lunch",48,1,6,1.8,1.8,2,170,"bowl",0,16,0.3,"🥒",["pudalangai","potlakaya"]],
-["Drumstick Curry","Lunch",65,2,9,2,3,3,220,"bowl",0,40,0.8,"🥬",["murungakkai","munagakaya","nuggekai","drumstick sambar"]],
-["Bitter Gourd Fry","Lunch",95,2,7,6,3,2,190,"bowl",0,25,0.6,"🥒",["pavakkai","karela","kakarakaya","hagalakai","karela fry"]],
-["Ash Gourd Curry","Lunch",40,0.8,6,1.2,1.2,3,170,"bowl",0,15,0.3,"🥒",["poosanikai","boodu kumbalakai","winter melon"]],
-["Raw Banana Curry","Lunch",130,1.5,20,5,3,4,200,"bowl",0,10,0.5,"🍌",["vazhakkai","aratikaya","balekai","raw plantain curry"]],
-["Capsicum Curry","Lunch",70,1.2,7,4,2,3,180,"bowl",0,12,0.5,"🫑",["bell pepper curry","shimla mirch","capsicum poriyal"]],
-["Pumpkin Curry","Lunch",55,1.2,8,1.8,1.8,4,170,"bowl",0,20,0.6,"🎃",["poosani","gummadikaya","kaddu"]],
-["Yam Fry","Lunch",140,1.8,22,5,3.5,2,180,"bowl",0,18,0.6,"🍠",["senai","kanda","suran","chena fry","elephant yam"]],
-["Colocasia Fry","Lunch",145,2,22,5,3,1.5,170,"bowl",0,35,0.8,"🍠",["seppankizhangu","chamagadda","arbi","kesuvu fry","taro"]],
-["Green Peas Curry","Lunch",110,5,14,3.5,4.5,5,200,"bowl",0,30,1.8,"🟢",["matar curry","pattani curry","peas masala"]],
-["Spinach Poriyal","Lunch",90,3,7,6,3,2,180,"bowl",0,90,2.5,"🥬",["keerai poriyal","palak poriyal","sag"]],
-["Drumstick Leaves Poriyal","Lunch",75,4,6,4,4,1.5,160,"bowl",0,180,4,"🥬",["murungai keerai","munaga aaku","nuggekai soppu","moringa leaves"]],
-["Sweet Potato Curry","Lunch",110,1.8,25,1,3.5,6,45,"bowl",0,30,0.7,"🍠",["sakkarai valli kizhangu","shakarkand","genasu","sweet potato"]],
-["Tapioca","Lunch",180,1.2,38,3,2,2,20,"bowl",0,25,0.6,"🍠",["kappa","maravalli kizhangu","cassava","kappa curry"]],
-["Ivy Gourd Poriyal","Lunch",105,1.5,8,7,3,3,160,"bowl",0,25,0.5,"🥒",["kovakkai","tindora","dondakaya","tindekai poriyal"]],
-["Chow Chow Poriyal","Lunch",80,1,9,4.5,2,3,150,"bowl",0,15,0.3,"🥒",["chayote","seemai kathirikai","bangalore kathirikai"]],
-["Avarakkai Poriyal","Lunch",115,4,13,5.5,5,3,170,"bowl",0,35,1.2,"🫛",["broad beans","mochai kottai","anapakaya","avarekai"]],
-["Kothavarangai Poriyal","Lunch",90,3,10,5,4,3,160,"bowl",0,40,1,"🫛",["cluster beans","gawar","chikkudukaya"]],
-["Radish Poriyal","Lunch",60,1,7,3.5,2,3,150,"bowl",0,20,0.3,"⚪",["mullangi","mooli","radish sambar","mullangi curry"]],
-["Sweet Corn","Snacks",96,3.4,21,1.5,2.4,4,15,"bowl",0,2,0.5,"🌽",["corn","makka cholam","mokka jonna","boiled corn"]],
-["Baby Corn Stir Fry","Lunch",80,2,14,3,2.5,3,200,"bowl",0,10,0.5,"🌽",["baby corn"]],
-["Broccoli","Lunch",55,3.5,8,1.5,3,2,50,"bowl",0,47,0.8,"🥦",["broccoli stir fry","broccoli fry"]],
-["Zucchini","Lunch",40,1.5,5,1.5,1.5,2.5,150,"bowl",0,15,0.4,"🥒",["zucchini fry","courgette"]],
-["Raw Papaya Curry","Lunch",50,1,8,2,2,4,160,"bowl",0,20,0.4,"🫑",["pappali curry","kacha papita","pappaya kai"]],
-["Banana Stem Curry","Lunch",40,1,8,1,3,2,140,"bowl",0,25,1,"🍌",["vazhaithandu","banana stem"]],
-["Banana Flower Poriyal","Lunch",55,2,9,1.5,4,2,160,"bowl",0,35,1.5,"🍌",["vazhapoo","banana flower"]],
-["Fenugreek Leaves Curry","Lunch",55,3.5,5,2.5,3,1,150,"bowl",0,150,2.5,"🌿",["methi","vendhaya keerai","menthi kura"]],
-["Amaranth Leaves Poriyal","Lunch",70,3.5,6,4.5,3,1,140,"bowl",0,200,3,"🥬",["mulai keerai","thotakura","harive soppu"]],
-["Raw Jackfruit Curry","Lunch",95,2,15,3,3,2,180,"bowl",0,25,0.8,"🟡",["chakka curry","kathal curry","kathal sabzi"]],
-["Carrot","Snacks",41,0.9,10,0.2,2.8,4.7,69,"pc",60,33,0.3,"🥕",["gajar","raw carrot"]],
-["Cucumber","Snacks",15,0.7,3.6,0.1,0.5,1.7,2,"bowl",0,16,0.3,"🥒",["vellarikai","dosakaya","kakadi"]],
-["Tomato","Snacks",18,0.9,3.9,0.2,1.2,2.6,5,"pc",90,10,0.3,"🍅",["thakkali","tamatar"]],
-["Onion","Snacks",40,1.1,9.3,0.1,1.7,4.2,4,"pc",80,23,0.2,"🧅",["ulli","vengayam","kanda","pyaz"]],
-["Capsicum","Snacks",20,0.9,4.6,0.2,1.7,2.4,3,"pc",120,10,0.4,"🫑",["bell pepper","shimla mirch raw"]],
-["Beetroot","Snacks",43,1.6,10,0.2,2.8,7,78,"pc",80,16,0.8,"🟣",["chukandar","raw beetroot"]],
-["Lettuce","Snacks",15,1.4,2.9,0.2,1.3,0.8,28,"bowl",0,36,0.9,"🥬",["salad leaves","iceberg lettuce"]],
-["Raw Mango","Snacks",60,0.6,15,0.4,1.6,10,2,"pc",100,8,0.3,"🥭",["manga","mavinakai","mamidikaya","kaccha aam"]],
+["Idli","Breakfast",95,3,21,0.3,0.9,0.3,150,"pc",40,10,0.5,"🍥",["idly"],"veg"],
+["Mini Idli","Breakfast",95,3,21,0.3,0.9,0.3,150,"pc",15,10,0.5,"🍥",["button idli"],"veg"],
+["Sambar Idli","Breakfast",95,4,17,2,2,1.2,300,"pc",95,20,0.8,"🍲",["idli sambar"],"veg"],
+["Ragi Idli","Breakfast",100,3.5,21,0.6,3.5,0.4,150,"pc",42,130,2.2,"🟤",["finger millet idli"],"veg"],
+["Plain Dosa","Breakfast",230,4.5,32,8.5,1.5,0.6,230,"pc",60,14,0.8,"🥞",["dosai","dosa"],"veg"],
+["Masala Dosa","Breakfast",195,4.5,30,7,2,1.5,260,"pc",120,18,1.1,"🥞",[],"veg"],
+["Ghee Roast","Breakfast",225,4,30,10,1.5,0.6,260,"pc",95,16,0.9,"🥞",["ghee roast dosa"],"veg"],
+["Set Dosa","Breakfast",180,4.5,30,5,1.5,0.8,220,"pc",50,15,0.8,"🥞",[],"veg"],
+["Podi Dosa","Breakfast",230,5.5,28,11,2,0.7,320,"pc",80,20,1.4,"🥞",["podi idli dosa"],"veg"],
+["Rava Dosa","Breakfast",238,4,26,12,1,0.5,300,"pc",62,12,0.7,"🥞",["rawa dosa"],"veg"],
+["Poori","Breakfast",340,6,40,17,2,0.8,190,"pc",30,14,1.2,"🫓",["puri"],"veg"],
+["Chapati","Breakfast",260,7,42,7,7,1,300,"pc",40,25,2.5,"🫓",["roti","phulka"],"veg"],
+["Parotta","Breakfast",330,7,45,13,2,1,280,"pc",80,20,1.8,"🫓",["parota","porotta"],"veg"],
+["Aappam","Breakfast",130,2.5,26,1.5,1,2,120,"pc",55,10,0.5,"🥞",["appam"],"veg"],
+["Idiyappam","Breakfast",150,3,33,0.4,1.5,0.2,80,"pc",50,8,0.4,"🍜",["string hoppers","noolputtu"],"veg"],
+["Pongal","Breakfast",150,3.5,23,5.5,1.3,0.4,240,"bowl",0,18,1.1,"🍚",[],"veg"],
+["Ven Pongal","Breakfast",155,4.5,22,6,1.3,0.4,280,"bowl",0,20,1.3,"🍚",["khara pongal"],"veg"],
+["Upma","Breakfast",130,3,20,4.5,1.5,0.8,240,"bowl",0,14,0.9,"🍲",["uppuma"],"veg"],
+["Semiya Upma","Breakfast",150,3.5,25,4,1,0.9,220,"bowl",0,12,0.8,"🍜",["vermicelli upma"],"veg"],
+["Aval Upma","Breakfast",130,2.5,23,3.5,1.5,0.6,200,"bowl",0,10,1.4,"🍚",["poha","flattened rice"],"veg"],
+["Rava Kesari","Breakfast",320,4,45,14,0.8,22,60,"bowl",0,16,0.9,"🍮",["kesari bath","sheera"],"veg"],
+["Lemon Rice","Lunch",160,3,28,4.5,1.2,0.6,320,"bowl",0,12,1,"🍚",["chitranna"],"veg"],
+["Curd Rice","Lunch",105,3,15,3,0.4,1.8,220,"bowl",0,85,0.5,"🍚",["thayir sadam","mosaru anna"],"veg"],
+["Tomato Rice","Lunch",150,3,27,4,1.2,2,300,"bowl",0,14,1.2,"🍅",["thakkali sadam"],"veg"],
+["Coconut Rice","Lunch",200,3.5,26,9,2,1,280,"bowl",0,16,1.1,"🥥",["thengai sadam"],"veg"],
+["Puliyodarai","Lunch",170,3,30,5,1.5,3,360,"bowl",0,18,1.4,"🍚",["tamarind rice","puliyogare"],"veg"],
+["Sambar Rice","Lunch",130,4,23,2.5,2,1.5,310,"bowl",0,26,1.6,"🍲",["sambar sadam"],"veg"],
+["Rasam Rice","Lunch",110,3,21,1.5,1,1,300,"bowl",0,18,1.3,"🍲",["rasam sadam"],"veg"],
+["Bisibele Bath","Lunch",150,4.5,24,4,2.5,1,330,"bowl",0,28,1.8,"🍛",["bisi bele bath"],"veg"],
+["Vegetable Biryani","Lunch",140,4,22,4.5,2,2,280,"bowl",0,30,1.2,"🍛",["veg biryani","vegetable pulao"],"veg"],
+["White Rice","Lunch",130,2.7,28,0.3,0.4,0.1,1,"bowl",0,10,0.4,"🍚",["cooked rice","sadam","anna"],"veg"],
+["Brown Rice","Lunch",123,2.7,26,1,1.8,0.2,3,"bowl",0,10,0.6,"🍚",[],"veg"],
+["Millets","Lunch",120,3.5,23,1,3,0.3,4,"bowl",0,18,1.5,"🌾",["foxtail","kambu","varagu","siridhanya"],"veg"],
+["Ragi Mudde","Lunch",120,2.5,25,0.8,3.5,0.2,5,"pc",120,120,2.6,"🟤",["ragi ball","finger millet"],"veg"],
+["Curd","Snacks",60,3.1,4.7,3.3,0,4.7,46,"bowl",0,110,0.1,"🥛",["yogurt","thayir","mosaru"],"veg"],
+["Buttermilk","Drinks",40,2,4,1.5,0,3,150,"glass",0,90,0.1,"🥛",["moru","majjige","chaas"],"veg"],
+["Milk","Drinks",62,3.2,4.8,3.4,0,4.8,44,"glass",0,120,0.1,"🥛",["paal","haalu"],"veg"],
+["Paneer","Lunch",265,18,1.2,21,0,1.2,22,"bowl",0,480,0.2,"🧀",["cottage cheese"],"veg"],
+["Tofu","Lunch",145,15,2,8,0.5,0.6,12,"bowl",0,350,2.7,"🧊",["bean curd"],"veg"],
+["Greek Yogurt","Snacks",97,9,4,5,0,4,36,"bowl",0,110,0.1,"🥛",[],"veg"],
+["Egg","Snacks",155,13,1.1,11,0,1.1,124,"pc",50,56,1.8,"🥚",["whole egg","muttai"],"egg"],
+["Egg White","Snacks",52,11,0.7,0.2,0,0.7,166,"pc",33,7,0.1,"🥚",["egg whites"],"egg"],
+["Boiled Egg","Snacks",155,13,1.1,11,0,1.1,124,"pc",50,56,1.8,"🥚",["hard boiled egg"],"egg"],
+["Omelette","Snacks",157,11,1,13,0,0.5,200,"pc",115,55,1.8,"🍳",["omelet","egg omelette"],"egg"],
+["Protein Shake","Post Workout",120,24,3,1.5,0.5,2,90,"scoop",30,140,0.5,"🥤",["shake"],"veg"],
+["Whey Protein","Post Workout",400,80,8,6,1,3,300,"scoop",30,500,1.5,"💪",["whey","protein powder"],"veg"],
+["Soy Chunks","Lunch",145,14,8,0.5,5,0.5,20,"bowl",0,90,3.5,"🫘",["meal maker","soya chunks"],"veg"],
+["Chickpeas","Lunch",164,8.9,27,2.6,7.6,4.8,7,"bowl",0,49,2.9,"🫘",["chana","kabuli chana"],"veg"],
+["Green Gram","Lunch",105,7,19,0.4,7,2,6,"bowl",0,27,1.4,"🫘",["moong","pesalu","hesaru"],"veg"],
+["Black Channa","Lunch",160,8,27,3,10,3,10,"bowl",0,58,4.3,"🫘",["kala chana","kadala"],"veg"],
+["Rajma","Lunch",127,8.7,22.8,0.5,6.4,0.6,12,"bowl",0,80,2.9,"🫘",["kidney beans"],"veg"],
+["Dal","Lunch",120,6,18,3,3,1,280,"bowl",0,26,1.9,"🍲",["parippu","paruppu","toor dal","tovve"],"veg"],
+["Sambar","Lunch",65,3,10,2,2,2,300,"bowl",0,28,1.3,"🍲",[],"veg"],
+["Rasam","Lunch",40,1.5,6,1,1,1.5,300,"bowl",0,20,1.2,"🍵",["saaru","chaaru"],"veg"],
+["Kootu","Lunch",100,4,12,4,3,1.5,220,"bowl",0,40,1.8,"🍛",[],"veg"],
+["Poriyal","Lunch",110,3,12,5.5,4,2,200,"bowl",0,45,1.6,"🥗",["curry stir fry","palya"],"veg"],
+["Avial","Lunch",120,2.5,9,8,3,2,240,"bowl",0,42,1.2,"🥘",[],"veg"],
+["Kurma","Lunch",130,3,11,8,2,2,280,"bowl",0,38,1.4,"🍛",["korma"],"veg"],
+["Vegetable Curry","Lunch",110,2.5,10,7,3,2.5,260,"bowl",0,40,1.5,"🍛",["veg curry","mixed veg"],"veg"],
+["Potato Fry","Lunch",150,2,20,7,2,1,200,"bowl",0,14,0.9,"🥔",["urulai","aloo fry"],"veg"],
+["Beans Poriyal","Lunch",105,3,10,6,4,3,190,"bowl",0,42,1.4,"🫛",["beans curry"],"veg"],
+["Cabbage Poriyal","Lunch",95,2.5,9,6,3,3,190,"bowl",0,45,1,"🥬",["cabbage curry"],"veg"],
+["Ladies Finger Fry","Lunch",120,2,11,8,4,2,160,"bowl",0,80,1.5,"🥒",["bhindi fry","vendakkai"],"veg"],
+["Beetroot Poriyal","Lunch",105,2,13,6,3,6,170,"bowl",0,22,1,"🟣",["beetroot curry"],"veg"],
+["Cauliflower Poriyal","Lunch",110,2.5,9,7.5,3,2,190,"bowl",0,25,0.6,"🥦",["gobi","gobhi","cauliflower curry","gobi poriyal"],"veg"],
+["Carrot Poriyal","Lunch",115,2,12,7,3,5,180,"bowl",0,30,0.4,"🥕",["carrot curry","gajar poriyal"],"veg"],
+["Brinjal Curry","Lunch",100,1.5,9,6,3,3,220,"bowl",0,20,0.5,"🍆",["eggplant","kathirikai","vankaya","baingan","brinjal fry"],"veg"],
+["Bottle Gourd Curry","Lunch",45,1,6,1.5,1.5,2,180,"bowl",0,18,0.3,"🥒",["sorakkai","lauki","sorekai","lauki curry"],"veg"],
+["Ridge Gourd Curry","Lunch",50,1.2,6,2,2,2,180,"bowl",0,18,0.3,"🥒",["peerkangai","beerakaya","heerekai"],"veg"],
+["Snake Gourd Curry","Lunch",48,1,6,1.8,1.8,2,170,"bowl",0,16,0.3,"🥒",["pudalangai","potlakaya"],"veg"],
+["Drumstick Curry","Lunch",65,2,9,2,3,3,220,"bowl",0,40,0.8,"🥬",["murungakkai","munagakaya","nuggekai","drumstick sambar"],"veg"],
+["Bitter Gourd Fry","Lunch",95,2,7,6,3,2,190,"bowl",0,25,0.6,"🥒",["pavakkai","karela","kakarakaya","hagalakai","karela fry"],"veg"],
+["Ash Gourd Curry","Lunch",40,0.8,6,1.2,1.2,3,170,"bowl",0,15,0.3,"🥒",["poosanikai","boodu kumbalakai","winter melon"],"veg"],
+["Raw Banana Curry","Lunch",130,1.5,20,5,3,4,200,"bowl",0,10,0.5,"🍌",["vazhakkai","aratikaya","balekai","raw plantain curry"],"veg"],
+["Capsicum Curry","Lunch",70,1.2,7,4,2,3,180,"bowl",0,12,0.5,"🫑",["bell pepper curry","shimla mirch","capsicum poriyal"],"veg"],
+["Pumpkin Curry","Lunch",55,1.2,8,1.8,1.8,4,170,"bowl",0,20,0.6,"🎃",["poosani","gummadikaya","kaddu"],"veg"],
+["Yam Fry","Lunch",140,1.8,22,5,3.5,2,180,"bowl",0,18,0.6,"🍠",["senai","kanda","suran","chena fry","elephant yam"],"veg"],
+["Colocasia Fry","Lunch",145,2,22,5,3,1.5,170,"bowl",0,35,0.8,"🍠",["seppankizhangu","chamagadda","arbi","kesuvu fry","taro"],"veg"],
+["Green Peas Curry","Lunch",110,5,14,3.5,4.5,5,200,"bowl",0,30,1.8,"🟢",["matar curry","pattani curry","peas masala"],"veg"],
+["Spinach Poriyal","Lunch",90,3,7,6,3,2,180,"bowl",0,90,2.5,"🥬",["keerai poriyal","palak poriyal","sag"],"veg"],
+["Drumstick Leaves Poriyal","Lunch",75,4,6,4,4,1.5,160,"bowl",0,180,4,"🥬",["murungai keerai","munaga aaku","nuggekai soppu","moringa leaves"],"veg"],
+["Sweet Potato Curry","Lunch",110,1.8,25,1,3.5,6,45,"bowl",0,30,0.7,"🍠",["sakkarai valli kizhangu","shakarkand","genasu","sweet potato"],"veg"],
+["Tapioca","Lunch",180,1.2,38,3,2,2,20,"bowl",0,25,0.6,"🍠",["kappa","maravalli kizhangu","cassava","kappa curry"],"veg"],
+["Ivy Gourd Poriyal","Lunch",105,1.5,8,7,3,3,160,"bowl",0,25,0.5,"🥒",["kovakkai","tindora","dondakaya","tindekai poriyal"],"veg"],
+["Chow Chow Poriyal","Lunch",80,1,9,4.5,2,3,150,"bowl",0,15,0.3,"🥒",["chayote","seemai kathirikai","bangalore kathirikai"],"veg"],
+["Avarakkai Poriyal","Lunch",115,4,13,5.5,5,3,170,"bowl",0,35,1.2,"🫛",["broad beans","mochai kottai","anapakaya","avarekai"],"veg"],
+["Kothavarangai Poriyal","Lunch",90,3,10,5,4,3,160,"bowl",0,40,1,"🫛",["cluster beans","gawar","chikkudukaya"],"veg"],
+["Radish Poriyal","Lunch",60,1,7,3.5,2,3,150,"bowl",0,20,0.3,"⚪",["mullangi","mooli","radish sambar","mullangi curry"],"veg"],
+["Sweet Corn","Snacks",96,3.4,21,1.5,2.4,4,15,"bowl",0,2,0.5,"🌽",["corn","makka cholam","mokka jonna","boiled corn"],"veg"],
+["Baby Corn Stir Fry","Lunch",80,2,14,3,2.5,3,200,"bowl",0,10,0.5,"🌽",["baby corn"],"veg"],
+["Broccoli","Lunch",55,3.5,8,1.5,3,2,50,"bowl",0,47,0.8,"🥦",["broccoli stir fry","broccoli fry"],"veg"],
+["Zucchini","Lunch",40,1.5,5,1.5,1.5,2.5,150,"bowl",0,15,0.4,"🥒",["zucchini fry","courgette"],"veg"],
+["Raw Papaya Curry","Lunch",50,1,8,2,2,4,160,"bowl",0,20,0.4,"🫑",["pappali curry","kacha papita","pappaya kai"],"veg"],
+["Banana Stem Curry","Lunch",40,1,8,1,3,2,140,"bowl",0,25,1,"🍌",["vazhaithandu","banana stem"],"veg"],
+["Banana Flower Poriyal","Lunch",55,2,9,1.5,4,2,160,"bowl",0,35,1.5,"🍌",["vazhapoo","banana flower"],"veg"],
+["Fenugreek Leaves Curry","Lunch",55,3.5,5,2.5,3,1,150,"bowl",0,150,2.5,"🌿",["methi","vendhaya keerai","menthi kura"],"veg"],
+["Amaranth Leaves Poriyal","Lunch",70,3.5,6,4.5,3,1,140,"bowl",0,200,3,"🥬",["mulai keerai","thotakura","harive soppu"],"veg"],
+["Raw Jackfruit Curry","Lunch",95,2,15,3,3,2,180,"bowl",0,25,0.8,"🟡",["chakka curry","kathal curry","kathal sabzi"],"veg"],
+["Carrot","Snacks",41,0.9,10,0.2,2.8,4.7,69,"pc",60,33,0.3,"🥕",["gajar","raw carrot"],"veg"],
+["Cucumber","Snacks",15,0.7,3.6,0.1,0.5,1.7,2,"bowl",0,16,0.3,"🥒",["vellarikai","dosakaya","kakadi"],"veg"],
+["Tomato","Snacks",18,0.9,3.9,0.2,1.2,2.6,5,"pc",90,10,0.3,"🍅",["thakkali","tamatar"],"veg"],
+["Onion","Snacks",40,1.1,9.3,0.1,1.7,4.2,4,"pc",80,23,0.2,"🧅",["ulli","vengayam","kanda","pyaz"],"veg"],
+["Capsicum","Snacks",20,0.9,4.6,0.2,1.7,2.4,3,"pc",120,10,0.4,"🫑",["bell pepper","shimla mirch raw"],"veg"],
+["Beetroot","Snacks",43,1.6,10,0.2,2.8,7,78,"pc",80,16,0.8,"🟣",["chukandar","raw beetroot"],"veg"],
+["Lettuce","Snacks",15,1.4,2.9,0.2,1.3,0.8,28,"bowl",0,36,0.9,"🥬",["salad leaves","iceberg lettuce"],"veg"],
+["Raw Mango","Snacks",60,0.6,15,0.4,1.6,10,2,"pc",100,8,0.3,"🥭",["manga","mavinakai","mamidikaya","kaccha aam"],"veg"],
 // ---- Sweets ----
-["Mysore Pak","Sweets",520,6,54,28,1,42,15,"pc",30,40,1.2,"🟧",["mysorepak"]],
-["Gulab Jamun","Sweets",323,9,28,19,0.3,27,35,"pc",40,45,0.8,"🍡",["jamun sweet"]],
-["Rasgulla","Sweets",130,2.5,22,3.5,0.2,20,25,"pc",40,40,0.3,"⚪",["roshogolla"]],
-["Jalebi","Sweets",345,3.5,48,15,0.5,38,80,"pc",30,30,0.6,"🟠",["jilebi"]],
-["Kaju Katli","Sweets",373,6.5,27,26.5,1,24,20,"pc",30,50,1,"🔶",["kaju barfi","cashew barfi"]],
-["Laddu","Sweets",437,8.5,57,19,1.5,38,30,"pc",30,60,1.2,"🟡",["besan laddu","boondi laddu","ladoo"]],
-["Sweet Pongal","Sweets",235,5,40,6,1.5,20,140,"bowl",0,50,1.5,"🍯",["sakkarai pongal","chakkarai pongal"]],
-["Paal Payasam","Sweets",200,5,22,8,0.3,18,50,"bowl",0,150,0.5,"🥛",["rice kheer","payasam"]],
-["Semiya Payasam","Sweets",190,4.5,26,6.5,0.5,20,45,"bowl",0,120,0.5,"🍜",["vermicelli payasam","semiya kheer"]],
-["Badam Halwa","Sweets",480,9,40,32,3,32,20,"bowl",0,90,1.2,"🍮",["almond halwa","badam ka halwa"]],
-["Milk Peda","Sweets",460,9,50,24,0,45,40,"pc",20,150,0.5,"🟡",["doodh peda","paal peda"]],
-["Adhirasam","Sweets",460,3,68,18,1,45,10,"pc",40,30,1.5,"🟤",["athirasam"]],
-["Coconut Barfi","Sweets",420,5,55,20,2,48,40,"pc",25,60,0.8,"🥥",["coconut burfi","thengai burfi"]],
+["Mysore Pak","Sweets",520,6,54,28,1,42,15,"pc",30,40,1.2,"🟧",["mysorepak"],"veg"],
+["Gulab Jamun","Sweets",323,9,28,19,0.3,27,35,"pc",40,45,0.8,"🍡",["jamun sweet"],"veg"],
+["Rasgulla","Sweets",130,2.5,22,3.5,0.2,20,25,"pc",40,40,0.3,"⚪",["roshogolla"],"veg"],
+["Jalebi","Sweets",345,3.5,48,15,0.5,38,80,"pc",30,30,0.6,"🟠",["jilebi"],"veg"],
+["Kaju Katli","Sweets",373,6.5,27,26.5,1,24,20,"pc",30,50,1,"🔶",["kaju barfi","cashew barfi"],"veg"],
+["Laddu","Sweets",437,8.5,57,19,1.5,38,30,"pc",30,60,1.2,"🟡",["besan laddu","boondi laddu","ladoo"],"veg"],
+["Sweet Pongal","Sweets",235,5,40,6,1.5,20,140,"bowl",0,50,1.5,"🍯",["sakkarai pongal","chakkarai pongal"],"veg"],
+["Paal Payasam","Sweets",200,5,22,8,0.3,18,50,"bowl",0,150,0.5,"🥛",["rice kheer","payasam"],"veg"],
+["Semiya Payasam","Sweets",190,4.5,26,6.5,0.5,20,45,"bowl",0,120,0.5,"🍜",["vermicelli payasam","semiya kheer"],"veg"],
+["Badam Halwa","Sweets",480,9,40,32,3,32,20,"bowl",0,90,1.2,"🍮",["almond halwa","badam ka halwa"],"veg"],
+["Milk Peda","Sweets",460,9,50,24,0,45,40,"pc",20,150,0.5,"🟡",["doodh peda","paal peda"],"veg"],
+["Adhirasam","Sweets",460,3,68,18,1,45,10,"pc",40,30,1.5,"🟤",["athirasam"],"veg"],
+["Coconut Barfi","Sweets",420,5,55,20,2,48,40,"pc",25,60,0.8,"🥥",["coconut burfi","thengai burfi"],"veg"],
 // ---- More drinks ----
-["Lemon Tea","Drinks",18,0.1,4.5,0,0,4,3,"glass",200,4,0.1,"🍋",["nimbu chai","lemon chai"]],
-["Green Tea","Drinks",1,0,0.3,0,0,0,1,"glass",200,2,0,"🍵",["green tea plain"]],
-["Black Tea","Drinks",16,0.1,4,0,0,4,3,"glass",200,2,0,"🍵",["kadak chai no milk","black tea sweet"]],
-["Nimbu Pani","Drinks",35,0.1,9,0,0.1,8,100,"glass",200,4,0.1,"🍋",["lemon water","shikanji"]],
-["Rose Milk","Drinks",85,3,12,2.8,0,11,45,"glass",200,110,0.1,"🌸",["rose milk drink"]],
-["Badam Milk","Drinks",95,3.5,10,4.5,0.3,9,50,"glass",200,130,0.3,"🥛",["almond milk drink","badam doodh"]],
-["Sugarcane Juice","Drinks",39,0.2,9.9,0,0.1,9,4,"glass",200,11,0.4,"🥤",["karumbu juice","ganne ka ras"]],
-["Fresh Lime Soda","Drinks",45,0,11,0,0,10,50,"glass",200,4,0.1,"🥤",["nimbu soda","lime soda sweet"]],
-["Health Drink","Drinks",90,3.5,13,2.5,0.3,10,60,"glass",200,140,1.5,"🥛",["bournvita","horlicks","boost drink"]],
-["Banana","Snacks",89,1.1,23,0.3,2.6,12,1,"pc",118,5,0.3,"🍌",["vazhaipazham"]],
-["Apple","Snacks",52,0.3,14,0.2,2.4,10,1,"pc",180,6,0.1,"🍎",[]],
-["Orange","Snacks",47,0.9,12,0.1,2.4,9,0,"pc",130,40,0.1,"🍊",["mosambi","sweet lime"]],
-["Papaya","Snacks",43,0.5,11,0.3,1.7,8,8,"bowl",150,20,0.3,"🫑",["pappali"]],
-["Watermelon","Snacks",30,0.6,8,0.2,0.4,6,1,"slice",200,7,0.2,"🍉",[]],
-["Mango","Snacks",60,0.8,15,0.4,1.6,14,1,"pc",200,11,0.2,"🥭",["maampazham"]],
-["Guava","Snacks",68,2.6,14,0.9,5.4,9,2,"pc",120,18,0.3,"🍏",["koyya","amrood","perakka"]],
-["Grapes","Snacks",69,0.7,18,0.2,0.9,15,2,"bowl",0,10,0.4,"🍇",["angoor","draksha","thratchai"]],
-["Pomegranate","Snacks",83,1.7,19,1.2,4,14,3,"bowl",0,10,0.3,"🔴",["anaar","madhulai","dalimba"]],
-["Pineapple","Snacks",50,0.5,13,0.1,1.4,10,1,"slice",80,13,0.3,"🍍",["ananas"]],
-["Sapota","Snacks",83,0.4,20,1.1,5.3,15,12,"pc",90,21,0.8,"🟤",["chikoo","chiku","sapota"]],
-["Custard Apple","Snacks",94,2.1,24,0.3,4.4,18,4,"pc",150,30,0.6,"🍈",["sitaphal","seetha pazham","sugar apple"]],
-["Jackfruit","Snacks",95,1.7,23,0.6,1.5,19,3,"bowl",0,24,0.2,"🟡",["chakka","palapazham","kathal"]],
-["Muskmelon","Snacks",34,0.8,8,0.2,0.9,8,16,"slice",150,9,0.2,"🍈",["kharbooja","cantaloupe"]],
-["Pear","Snacks",57,0.4,15,0.1,3.1,10,1,"pc",180,9,0.2,"🍐",["nashpati"]],
-["Dates","Snacks",282,2.5,75,0.4,8,63,2,"pc",8,39,1,"🟤",["khajur","dates","pericham pazham"]],
-["Jamun","Snacks",60,0.7,14,0.2,0.6,10,14,"bowl",0,19,0.2,"🫐",["naval pazham","black plum","neredu"]],
-["Kiwi","Snacks",61,1.1,15,0.5,3,9,3,"pc",75,34,0.3,"🥝",["kiwifruit"]],
-["Strawberry","Snacks",32,0.7,7.7,0.3,2,4.9,1,"bowl",0,16,0.4,"🍓",["strawberries"]],
-["Sweet Lime","Snacks",43,0.8,9.3,0.3,1,8,2,"pc",130,40,0.3,"🍊",["mosambi","musambi"]],
-["Tender Coconut","Drinks",19,0.7,3.7,0.2,1.1,2.6,105,"glass",0,24,0.3,"🥥",["elaneer","coconut water","nariyal pani"]],
-["Lemon","Drinks",29,1.1,9,0.3,2.8,2.5,2,"pc",60,26,0.6,"🍋",["nimbu","elumichai","nimbu pani"]],
-["Groundnuts","Snacks",567,26,16,49,8.5,4,18,"hand",30,92,4.6,"🥜",["peanuts","verkadalai"]],
-["Cashews","Snacks",553,18,30,44,3.3,6,12,"hand",30,37,6.7,"🥜",["kaju","mundhiri"]],
-["Almonds","Snacks",579,21,22,50,12.5,4,1,"hand",28,269,3.7,"🥜",["badam"]],
-["Walnuts","Snacks",654,15,14,65,6.7,2.6,2,"hand",30,98,2.9,"🌰",["akhrot"]],
-["Tea","Drinks",40,1,6,1,0,5,25,"glass",120,40,0.1,"🍵",["chai","tea with milk"]],
-["Coffee","Drinks",45,1.2,6.5,1.3,0,5.5,28,"glass",120,45,0.1,"☕",["kaapi","milk coffee"]],
-["Filter Coffee","Drinks",50,1.4,7,1.5,0,6,30,"glass",120,50,0.1,"☕",["degree coffee","filter kaapi"]],
-["Sugar","Drinks",387,0,100,0,0,100,1,"tbsp",5,1,0.1,"🧂",["chini"]],
-["Jaggery","Drinks",383,0.4,98,0.1,0,97,30,"tbsp",5,80,11,"🟫",["vellam","bella","gur"]],
-["Coconut Chutney","Breakfast",200,3,8,17,3,2,180,"tbsp",15,20,1.2,"🥥",["thengai chutney"]],
-["Tomato Chutney","Breakfast",90,1.5,9,5,2,4,200,"tbsp",15,14,1,"🍅",["thakkali chutney"]],
-["Mint Chutney","Breakfast",80,2,9,4,3,2,190,"tbsp",15,60,2,"🌿",["pudina chutney"]],
-["Peanut Chutney","Breakfast",220,8,12,16,4,3,200,"tbsp",15,40,1.6,"🥜",["verkadalai chutney"]],
+["Lemon Tea","Drinks",18,0.1,4.5,0,0,4,3,"glass",200,4,0.1,"🍋",["nimbu chai","lemon chai"],"veg"],
+["Green Tea","Drinks",1,0,0.3,0,0,0,1,"glass",200,2,0,"🍵",["green tea plain"],"veg"],
+["Black Tea","Drinks",16,0.1,4,0,0,4,3,"glass",200,2,0,"🍵",["kadak chai no milk","black tea sweet"],"veg"],
+["Nimbu Pani","Drinks",35,0.1,9,0,0.1,8,100,"glass",200,4,0.1,"🍋",["lemon water","shikanji"],"veg"],
+["Rose Milk","Drinks",85,3,12,2.8,0,11,45,"glass",200,110,0.1,"🌸",["rose milk drink"],"veg"],
+["Badam Milk","Drinks",95,3.5,10,4.5,0.3,9,50,"glass",200,130,0.3,"🥛",["almond milk drink","badam doodh"],"veg"],
+["Sugarcane Juice","Drinks",39,0.2,9.9,0,0.1,9,4,"glass",200,11,0.4,"🥤",["karumbu juice","ganne ka ras"],"veg"],
+["Fresh Lime Soda","Drinks",45,0,11,0,0,10,50,"glass",200,4,0.1,"🥤",["nimbu soda","lime soda sweet"],"veg"],
+["Health Drink","Drinks",90,3.5,13,2.5,0.3,10,60,"glass",200,140,1.5,"🥛",["bournvita","horlicks","boost drink"],"veg"],
+["Banana","Snacks",89,1.1,23,0.3,2.6,12,1,"pc",118,5,0.3,"🍌",["vazhaipazham"],"veg"],
+["Apple","Snacks",52,0.3,14,0.2,2.4,10,1,"pc",180,6,0.1,"🍎",[],"veg"],
+["Orange","Snacks",47,0.9,12,0.1,2.4,9,0,"pc",130,40,0.1,"🍊",["mosambi","sweet lime"],"veg"],
+["Papaya","Snacks",43,0.5,11,0.3,1.7,8,8,"bowl",150,20,0.3,"🫑",["pappali"],"veg"],
+["Watermelon","Snacks",30,0.6,8,0.2,0.4,6,1,"slice",200,7,0.2,"🍉",[],"veg"],
+["Mango","Snacks",60,0.8,15,0.4,1.6,14,1,"pc",200,11,0.2,"🥭",["maampazham"],"veg"],
+["Guava","Snacks",68,2.6,14,0.9,5.4,9,2,"pc",120,18,0.3,"🍏",["koyya","amrood","perakka"],"veg"],
+["Grapes","Snacks",69,0.7,18,0.2,0.9,15,2,"bowl",0,10,0.4,"🍇",["angoor","draksha","thratchai"],"veg"],
+["Pomegranate","Snacks",83,1.7,19,1.2,4,14,3,"bowl",0,10,0.3,"🔴",["anaar","madhulai","dalimba"],"veg"],
+["Pineapple","Snacks",50,0.5,13,0.1,1.4,10,1,"slice",80,13,0.3,"🍍",["ananas"],"veg"],
+["Sapota","Snacks",83,0.4,20,1.1,5.3,15,12,"pc",90,21,0.8,"🟤",["chikoo","chiku","sapota"],"veg"],
+["Custard Apple","Snacks",94,2.1,24,0.3,4.4,18,4,"pc",150,30,0.6,"🍈",["sitaphal","seetha pazham","sugar apple"],"veg"],
+["Jackfruit","Snacks",95,1.7,23,0.6,1.5,19,3,"bowl",0,24,0.2,"🟡",["chakka","palapazham","kathal"],"veg"],
+["Muskmelon","Snacks",34,0.8,8,0.2,0.9,8,16,"slice",150,9,0.2,"🍈",["kharbooja","cantaloupe"],"veg"],
+["Pear","Snacks",57,0.4,15,0.1,3.1,10,1,"pc",180,9,0.2,"🍐",["nashpati"],"veg"],
+["Dates","Snacks",282,2.5,75,0.4,8,63,2,"pc",8,39,1,"🟤",["khajur","dates","pericham pazham"],"veg"],
+["Jamun","Snacks",60,0.7,14,0.2,0.6,10,14,"bowl",0,19,0.2,"🫐",["naval pazham","black plum","neredu"],"veg"],
+["Kiwi","Snacks",61,1.1,15,0.5,3,9,3,"pc",75,34,0.3,"🥝",["kiwifruit"],"veg"],
+["Strawberry","Snacks",32,0.7,7.7,0.3,2,4.9,1,"bowl",0,16,0.4,"🍓",["strawberries"],"veg"],
+["Sweet Lime","Snacks",43,0.8,9.3,0.3,1,8,2,"pc",130,40,0.3,"🍊",["mosambi","musambi"],"veg"],
+["Tender Coconut","Drinks",19,0.7,3.7,0.2,1.1,2.6,105,"glass",0,24,0.3,"🥥",["elaneer","coconut water","nariyal pani"],"veg"],
+["Lemon","Drinks",29,1.1,9,0.3,2.8,2.5,2,"pc",60,26,0.6,"🍋",["nimbu","elumichai","nimbu pani"],"veg"],
+["Groundnuts","Snacks",567,26,16,49,8.5,4,18,"hand",30,92,4.6,"🥜",["peanuts","verkadalai"],"veg"],
+["Cashews","Snacks",553,18,30,44,3.3,6,12,"hand",30,37,6.7,"🥜",["kaju","mundhiri"],"veg"],
+["Almonds","Snacks",579,21,22,50,12.5,4,1,"hand",28,269,3.7,"🥜",["badam"],"veg"],
+["Walnuts","Snacks",654,15,14,65,6.7,2.6,2,"hand",30,98,2.9,"🌰",["akhrot"],"veg"],
+["Tea","Drinks",40,1,6,1,0,5,25,"glass",120,40,0.1,"🍵",["chai","tea with milk"],"veg"],
+["Coffee","Drinks",45,1.2,6.5,1.3,0,5.5,28,"glass",120,45,0.1,"☕",["kaapi","milk coffee"],"veg"],
+["Filter Coffee","Drinks",50,1.4,7,1.5,0,6,30,"glass",120,50,0.1,"☕",["degree coffee","filter kaapi"],"veg"],
+["Sugar","Drinks",387,0,100,0,0,100,1,"tbsp",5,1,0.1,"🧂",["chini"],"veg"],
+["Jaggery","Drinks",383,0.4,98,0.1,0,97,30,"tbsp",5,80,11,"🟫",["vellam","bella","gur"],"veg"],
+["Coconut Chutney","Breakfast",200,3,8,17,3,2,180,"tbsp",15,20,1.2,"🥥",["thengai chutney"],"veg"],
+["Tomato Chutney","Breakfast",90,1.5,9,5,2,4,200,"tbsp",15,14,1,"🍅",["thakkali chutney"],"veg"],
+["Mint Chutney","Breakfast",80,2,9,4,3,2,190,"tbsp",15,60,2,"🌿",["pudina chutney"],"veg"],
+["Peanut Chutney","Breakfast",220,8,12,16,4,3,200,"tbsp",15,40,1.6,"🥜",["verkadalai chutney"],"veg"],
 // ---- Plant & veg proteins ----
-["Fast&Up Plant Protein","Post Workout",400,74,11,6,6,2,250,"scoop",35,300,4,"🌱",["plant protein","fast and up","vegan protein","pea protein"]],
-["Pea Protein","Post Workout",375,80,7,5,4,1,300,"scoop",30,150,6,"🌱",["pea protein isolate","vegan protein"]],
-["Soy Protein Isolate","Post Workout",380,88,4,1.5,2,1,900,"scoop",30,120,9,"🌱",["soy protein","soya protein"]],
-["Hemp Protein","Post Workout",350,50,25,11,18,2,10,"scoop",30,700,12,"🌱",["hemp protein powder"]],
-["Sattu","Drinks",410,23,55,6,8,2,40,"tbsp",15,80,6,"🥤",["roasted gram flour","sattu drink"]],
-["Peanut Butter","Snacks",588,25,20,50,6,9,17,"tbsp",15,49,1.9,"🥜",["peanut butter","pb"]],
-["Tofu Bhurji","Lunch",150,14,4,9,1,1,300,"bowl",0,300,2.5,"🧊",["tofu scramble","tofu bhurji"]],
-["Tofu Curry","Lunch",130,10,6,8,2,2,280,"bowl",0,250,2.2,"🍛",["tofu masala"]],
-["Grilled Tofu","Lunch",160,17,3,9,1,1,260,"bowl",0,320,2.7,"🧊",["tofu tikka","paneer tofu"]],
-["Soya Chunks Salad","Lunch",120,13,9,2,4,2,200,"bowl",0,90,3.5,"🥗",["soya salad","meal maker salad"]],
-["Soya Chunks Curry","Lunch",135,12,10,5,4,2,320,"bowl",0,80,3.5,"🍛",["soya curry","meal maker curry"]],
-["Edamame","Snacks",121,12,9,5,5,2,6,"bowl",0,63,2.3,"🫛",["edamame beans","soybeans"]],
-["Tempeh","Lunch",192,20,8,11,6,1,10,"bowl",0,111,2.7,"🟫",["tempeh"]],
-["Mushroom","Lunch",22,3.1,3.3,0.3,1,2,5,"bowl",0,3,0.5,"🍄",["button mushroom","kaalan","kumbu"]],
-["Mushroom Masala","Lunch",90,3.5,8,5,2,3,300,"bowl",0,20,1,"🍄",["mushroom curry","mushroom gravy"]],
-["Mushroom Pepper Fry","Lunch",110,4,7,7,2,2,320,"bowl",0,18,1.2,"🍄",["kaalan pepper fry"]],
-["Paneer Butter Masala","Lunch",210,10.5,9.5,15.5,1.3,4,380,"bowl",0,180,0.9,"🧀",["paneer makhani"]],
-["Palak Paneer","Lunch",148,8,8,10,2,3,320,"bowl",0,200,2,"🥬",["spinach paneer"]],
-["Paneer Bhurji","Lunch",210,15,5,15,1,3,380,"bowl",0,300,0.8,"🧀",["scrambled paneer"]],
-["Paneer Tikka","Snacks",180,16,6,11,1,3,380,"bowl",0,280,0.5,"🧀",["grilled paneer","tandoori paneer"]],
-["Chilli Paneer","Snacks",230,13,12,15,1.5,4,450,"bowl",0,200,1,"🧀",["chilly paneer"]],
-["Adai","Breakfast",210,9,28,7,4,1,220,"pc",90,30,2.5,"🥞",["adai dosa","lentil dosa"]],
-["Pesarattu","Breakfast",210,9,25,7,3,1,220,"pc",90,28,2.2,"🥞",["moong dosa","green gram dosa"]],
-["Ragi Dosa","Breakfast",150,4,27,3,4,0.5,180,"pc",80,90,2,"🥞",["finger millet dosa"]],
-["Oats Dosa","Breakfast",160,5,25,4,3,1,190,"pc",80,30,1.8,"🥞",["oats adai"]],
-["Uttapam","Breakfast",165,4,28,4,2,1.5,220,"pc",100,20,1,"🥞",["uthappam","onion uttapam"]],
-["Sorakkai Dosa","Breakfast",180,6,30,4,3,2,200,"pc",90,35,1.8,"🥒",["bottle gourd dosa","surakka dosa","surakkai dosai","lauki dosa"]],
-["Poosanikai Dosa","Breakfast",185,6,31,4,2.5,2.5,200,"pc",90,30,1.6,"🎃",["ash gourd dosa","poosanika dosa","pumpkin dosa"]],
-["Medu Vada","Breakfast",250,7,26,13,4,1,300,"pc",45,20,1.6,"🍩",["ulundu vada","vadai","urad vada"]],
-["Masala Vada","Snacks",230,9,25,11,5,1,280,"pc",40,30,2.2,"🍩",["paruppu vadai","chana dal vada"]],
-["Sundal","Snacks",150,8,20,3.5,6,1.5,200,"bowl",0,50,2.5,"🫘",["kadalai sundal","channa sundal"]],
-["Murukku","Snacks",540,8,58,30,3,1,450,"pc",15,80,2,"🌀",["chakli","muruku"]],
-["Bonda","Snacks",230,5,27,11,2,2,280,"pc",35,25,1,"🟠",["mysore bonda","aloo bonda"]],
-["Banana Chips","Snacks",560,2.5,58,36,3,20,150,"hand",30,20,0.8,"🍌",["kerala chips","nendran chips"]],
-["Curd Vada","Snacks",140,5,15,7,1.5,3,320,"bowl",0,80,1,"🍩",["thayir vadai","dahi vada"]],
-["Neer Dosa","Breakfast",175,3,34,2.5,0.5,0.3,150,"pc",60,10,0.5,"🥞",["neer dosai"]],
-["Kozhukattai","Sweets",200,3,35,5,2,18,20,"pc",35,30,0.8,"🥟",["modak","kolukattai","sweet dumpling"]],
-["Sprouts","Snacks",100,8,14,0.5,4,2,10,"bowl",0,30,2.2,"🌱",["moong sprouts","sprouted moong"]],
-["Boiled Peanuts","Snacks",318,14,20,23,6.5,3,300,"bowl",0,50,2.6,"🥜",["boiled groundnuts","verkadalai"]],
-["Puttu","Breakfast",130,2.5,27,1,2,0.5,60,"bowl",0,15,1,"🍚",["kerala puttu"]],
-["Kadala Curry","Lunch",140,7,18,4,6,2,320,"bowl",0,50,3,"🍛",["black chana curry","kadala"]],
-["Kosambari Salad","Lunch",60,3,8,1.5,3,2,120,"bowl",0,40,1.5,"🥗",["kosambari","moong salad"]],
-["Mixed Veg Salad","Lunch",45,2,8,0.5,3,3,80,"bowl",0,40,1,"🥗",["salad","green salad"]],
+["Fast&Up Plant Protein","Post Workout",400,74,11,6,6,2,250,"scoop",35,300,4,"🌱",["plant protein","fast and up","vegan protein","pea protein"],"veg"],
+["Pea Protein","Post Workout",375,80,7,5,4,1,300,"scoop",30,150,6,"🌱",["pea protein isolate","vegan protein"],"veg"],
+["Soy Protein Isolate","Post Workout",380,88,4,1.5,2,1,900,"scoop",30,120,9,"🌱",["soy protein","soya protein"],"veg"],
+["Hemp Protein","Post Workout",350,50,25,11,18,2,10,"scoop",30,700,12,"🌱",["hemp protein powder"],"veg"],
+["Sattu","Drinks",410,23,55,6,8,2,40,"tbsp",15,80,6,"🥤",["roasted gram flour","sattu drink"],"veg"],
+["Peanut Butter","Snacks",588,25,20,50,6,9,17,"tbsp",15,49,1.9,"🥜",["peanut butter","pb"],"veg"],
+["Tofu Bhurji","Lunch",150,14,4,9,1,1,300,"bowl",0,300,2.5,"🧊",["tofu scramble","tofu bhurji"],"veg"],
+["Tofu Curry","Lunch",130,10,6,8,2,2,280,"bowl",0,250,2.2,"🍛",["tofu masala"],"veg"],
+["Grilled Tofu","Lunch",160,17,3,9,1,1,260,"bowl",0,320,2.7,"🧊",["tofu tikka","paneer tofu"],"veg"],
+["Soya Chunks Salad","Lunch",120,13,9,2,4,2,200,"bowl",0,90,3.5,"🥗",["soya salad","meal maker salad"],"veg"],
+["Soya Chunks Curry","Lunch",135,12,10,5,4,2,320,"bowl",0,80,3.5,"🍛",["soya curry","meal maker curry"],"veg"],
+["Edamame","Snacks",121,12,9,5,5,2,6,"bowl",0,63,2.3,"🫛",["edamame beans","soybeans"],"veg"],
+["Tempeh","Lunch",192,20,8,11,6,1,10,"bowl",0,111,2.7,"🟫",["tempeh"],"veg"],
+["Mushroom","Lunch",22,3.1,3.3,0.3,1,2,5,"bowl",0,3,0.5,"🍄",["button mushroom","kaalan","kumbu"],"veg"],
+["Mushroom Masala","Lunch",90,3.5,8,5,2,3,300,"bowl",0,20,1,"🍄",["mushroom curry","mushroom gravy"],"veg"],
+["Mushroom Pepper Fry","Lunch",110,4,7,7,2,2,320,"bowl",0,18,1.2,"🍄",["kaalan pepper fry"],"veg"],
+["Paneer Butter Masala","Lunch",210,10.5,9.5,15.5,1.3,4,380,"bowl",0,180,0.9,"🧀",["paneer makhani"],"veg"],
+["Palak Paneer","Lunch",148,8,8,10,2,3,320,"bowl",0,200,2,"🥬",["spinach paneer"],"veg"],
+["Paneer Bhurji","Lunch",210,15,5,15,1,3,380,"bowl",0,300,0.8,"🧀",["scrambled paneer"],"veg"],
+["Paneer Tikka","Snacks",180,16,6,11,1,3,380,"bowl",0,280,0.5,"🧀",["grilled paneer","tandoori paneer"],"veg"],
+["Chilli Paneer","Snacks",230,13,12,15,1.5,4,450,"bowl",0,200,1,"🧀",["chilly paneer"],"veg"],
+["Adai","Breakfast",210,9,28,7,4,1,220,"pc",90,30,2.5,"🥞",["adai dosa","lentil dosa"],"veg"],
+["Pesarattu","Breakfast",210,9,25,7,3,1,220,"pc",90,28,2.2,"🥞",["moong dosa","green gram dosa"],"veg"],
+["Ragi Dosa","Breakfast",150,4,27,3,4,0.5,180,"pc",80,90,2,"🥞",["finger millet dosa"],"veg"],
+["Oats Dosa","Breakfast",160,5,25,4,3,1,190,"pc",80,30,1.8,"🥞",["oats adai"],"veg"],
+["Uttapam","Breakfast",165,4,28,4,2,1.5,220,"pc",100,20,1,"🥞",["uthappam","onion uttapam"],"veg"],
+["Sorakkai Dosa","Breakfast",180,6,30,4,3,2,200,"pc",90,35,1.8,"🥒",["bottle gourd dosa","surakka dosa","surakkai dosai","lauki dosa"],"veg"],
+["Poosanikai Dosa","Breakfast",185,6,31,4,2.5,2.5,200,"pc",90,30,1.6,"🎃",["ash gourd dosa","poosanika dosa","pumpkin dosa"],"veg"],
+["Medu Vada","Breakfast",250,7,26,13,4,1,300,"pc",45,20,1.6,"🍩",["ulundu vada","vadai","urad vada"],"veg"],
+["Masala Vada","Snacks",230,9,25,11,5,1,280,"pc",40,30,2.2,"🍩",["paruppu vadai","chana dal vada"],"veg"],
+["Sundal","Snacks",150,8,20,3.5,6,1.5,200,"bowl",0,50,2.5,"🫘",["kadalai sundal","channa sundal"],"veg"],
+["Murukku","Snacks",540,8,58,30,3,1,450,"pc",15,80,2,"🌀",["chakli","muruku"],"veg"],
+["Bonda","Snacks",230,5,27,11,2,2,280,"pc",35,25,1,"🟠",["mysore bonda","aloo bonda"],"veg"],
+["Banana Chips","Snacks",560,2.5,58,36,3,20,150,"hand",30,20,0.8,"🍌",["kerala chips","nendran chips"],"veg"],
+["Curd Vada","Snacks",140,5,15,7,1.5,3,320,"bowl",0,80,1,"🍩",["thayir vadai","dahi vada"],"veg"],
+["Neer Dosa","Breakfast",175,3,34,2.5,0.5,0.3,150,"pc",60,10,0.5,"🥞",["neer dosai"],"veg"],
+["Kozhukattai","Sweets",200,3,35,5,2,18,20,"pc",35,30,0.8,"🥟",["modak","kolukattai","sweet dumpling"],"veg"],
+["Sprouts","Snacks",100,8,14,0.5,4,2,10,"bowl",0,30,2.2,"🌱",["moong sprouts","sprouted moong"],"veg"],
+["Boiled Peanuts","Snacks",318,14,20,23,6.5,3,300,"bowl",0,50,2.6,"🥜",["boiled groundnuts","verkadalai"],"veg"],
+["Puttu","Breakfast",130,2.5,27,1,2,0.5,60,"bowl",0,15,1,"🍚",["kerala puttu"],"veg"],
+["Kadala Curry","Lunch",140,7,18,4,6,2,320,"bowl",0,50,3,"🍛",["black chana curry","kadala"],"veg"],
+["Kosambari Salad","Lunch",60,3,8,1.5,3,2,120,"bowl",0,40,1.5,"🥗",["kosambari","moong salad"],"veg"],
+["Mixed Veg Salad","Lunch",45,2,8,0.5,3,3,80,"bowl",0,40,1,"🥗",["salad","green salad"],"veg"],
+// ---- Non-veg (chicken, fish, mutton, prawn) ----
+["Chicken Curry","Lunch",180,20,5,9,1,2,320,"bowl",0,20,1.2,"🍗",["kozhi curry","koli curry","chicken kuzhambu","murgh curry"],"nonveg"],
+["Chicken Biryani","Lunch",200,10,25,7,1.5,2,300,"bowl",0,20,1,"🍛",["chicken dum biryani","kozhi biryani"],"nonveg"],
+["Chicken 65","Snacks",280,20,10,18,1,3,420,"bowl",0,20,1.2,"🍗",["chicken sixty five"],"nonveg"],
+["Chicken Fry","Lunch",220,22,4,13,1,1,300,"bowl",0,18,1.4,"🍗",["kozhi varuval","chicken varuval"],"nonveg"],
+["Chicken Sukka","Lunch",200,20,4,12,1.5,2,320,"bowl",0,22,1.3,"🍗",["kori sukka","kozhi sukka"],"nonveg"],
+["Chettinad Chicken","Lunch",210,19,6,13,1.5,2,340,"bowl",0,22,1.5,"🍗",["chettinad kozhi curry"],"nonveg"],
+["Tandoori Chicken","Snacks",180,25,2,8,0.3,1,380,"pc",120,15,1.2,"🍗",["chicken tikka"],"nonveg"],
+["Egg Curry","Lunch",150,9,6,10,0.5,3,300,"bowl",0,50,1.5,"🍛",["mutta curry","muttai curry","egg masala"],"egg"],
+["Fish Curry","Lunch",150,18,4,7,0.5,2,320,"bowl",0,25,1,"🐟",["meen kuzhambu","fish kuzhambu","chepa pulusu"],"nonveg"],
+["Fish Fry","Lunch",200,20,5,12,0.5,1,300,"bowl",0,20,1,"🐟",["meen varuval","fish varuval"],"nonveg"],
+["Mutton Curry","Lunch",250,18,5,18,1,2,340,"bowl",0,25,2.2,"🍖",["aatu kari curry","mutton kuzhambu"],"nonveg"],
+["Prawn Curry","Lunch",160,18,5,8,0.5,2,340,"bowl",0,60,1.5,"🦐",["eral curry","royyala kura"],"nonveg"],
 ];
 function mkPer100(o){return Object.assign({kcal:0,p:0,c:0,f:0,fib:0,sug:0,sod:0,ca:0,fe:0},o);}
 const FOODS=RAW.map((r,i)=>({
   id:i,name:r[0],cat:r[1],
   per100:mkPer100({kcal:r[2],p:r[3],c:r[4],f:r[5],fib:r[6],sug:r[7],sod:r[8],ca:r[11],fe:r[12]}),
-  unit:r[9],gPerUnit:r[10],emoji:r[13],aliases:r[14]||[]
+  unit:r[9],gPerUnit:r[10],emoji:r[13],aliases:r[14]||[],diet:r[15]||'veg'
 }));
 function customFoods(){return store.get('customFoods',[]);}
 function allFoods(){return FOODS.concat(customFoods());}
 function foodById(id){ if(typeof id==='number')return FOODS[id]; return allFoods().find(f=>f.id===id); }
+
+/* ---- Diet preference (veg / veg+egg / everything) ----
+   Foods with no diet tag (custom / barcode / AI-detected) always pass — we
+   never hide something you made yourself just because it lacks metadata. */
+const DIET_RANK={veg:0,egg:1,nonveg:2};
+function dietAllowed(foodDiet,pref){
+  if(pref==='all'||!foodDiet)return true;
+  return (DIET_RANK[foodDiet]??2)<=(DIET_RANK[pref]??2);
+}
+function dietPref(){return store.get('dietPref','all');}
 
 function portionsFor(f){
   const g=f.gPerUnit;
@@ -521,6 +545,21 @@ function calcGoals(p,dayType){
 }
 function waterTargetMl(p){return Math.round(p.weight*35/100)*100;}
 function fmtL(ml){const l=Math.round((ml||0)/10)/100;return (Number.isInteger(l)?l.toFixed(1):l.toFixed(2)).replace(/0$/,'').replace(/\.$/,'.0');}
+
+/* ---- "What should I eat?" suggestions ----
+   Ranks foods (at their default portion) by protein-per-calorie so the list
+   naturally leads with whatever closes the day's biggest usual gap — protein
+   — first. Portions far past what's left on the calorie budget are dropped,
+   with a small floor so something always shows even once you're near/over. */
+function suggestFoods(remaining,diet,limit=15){
+  const kcalCap=Math.max(remaining.kcal,100)*1.3;
+  return allFoods()
+    .filter(f=>dietAllowed(f.diet,diet))
+    .map(f=>{const dp=defaultPortion(f);const m=computeMacros(f,dp[1]);return {f,dp,m};})
+    .filter(x=>x.m.kcal>0&&x.m.kcal<=kcalCap)
+    .sort((a,b)=>(b.m.p/b.m.kcal)-(a.m.p/a.m.kcal))
+    .slice(0,limit);
+}
 
 const $=(s,el=document)=>el.querySelector(s);
 const el=h=>{const t=document.createElement('template');t.innerHTML=h.trim();return t.content.firstElementChild;};
@@ -602,6 +641,15 @@ function renderHome(scr){
     mg.appendChild(card);});
   scr.appendChild(mg);
 
+  const remMacros={kcal:remaining,p:Math.max(0,g.protein-tot.p),c:Math.max(0,g.carbs-tot.c),f:Math.max(0,g.fat-tot.f)};
+  const suggestCard=el(`<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:14px">
+    <div style="font-size:26px">🎯</div>
+    <div style="flex:1"><b style="font-size:14px">What should I eat?</b>
+      <div class="muted" style="font-size:12px;margin-top:2px">${over?'You\'re over — light, high-protein picks':`Foods to close the gap · ${fmt(remMacros.p)}g protein left`}</div></div>
+    <button class="link">See list ›</button></div>`);
+  suggestCard.onclick=()=>{haptic();openSuggestSheet(remMacros);};
+  scr.appendChild(suggestCard);
+
   // quick add
   const quickIds=[...new Set([...Object.entries(state.freq).sort((a,b)=>b[1]-a[1]).map(([id])=>id.match(/^\d+$/)?+id:id),...state.recent])].slice(0,8);
   if(quickIds.length){
@@ -639,13 +687,20 @@ function renderHome(scr){
   scr.appendChild(grid2);
 
   scr.appendChild(el(`<div class="card-title" style="padding:6px 0 2px">Today's meals</div>`));
+  const yesterday=dayData(todayKey(new Date(new Date(state.date).getTime()-864e5)));
   MEALS.forEach(([name,emoji])=>{
     const items=d.log.filter(x=>x.meal===name),kc=items.reduce((a,x)=>a+x.m.kcal,0);
-    const meal=el(`<div class="meal"><div class="meal-head"><div class="meal-emoji">${emoji}</div>
-      <div class="t"><b>${name}</b><small>${items.length?items.length+' item'+(items.length>1?'s':''):'Nothing logged'}</small></div>
-      ${kc?`<div class="kc">${fmt(kc)} kcal</div>`:''}<button class="add-btn">+</button></div></div>`);
+    const yItems=yesterday.log.filter(x=>x.meal===name);
+    const isPostWorkout=name==='Post Workout',promote=isPostWorkout&&dtype==='train'&&!items.length;
+    const meal=el(`<div class="meal" style="${promote?'border:1.5px solid var(--amber)':''}"><div class="meal-head"><div class="meal-emoji">${emoji}</div>
+      <div class="t"><b>${name}</b><small>${items.length?items.length+' item'+(items.length>1?'s':''):(promote?'🏋️ Training day — refuel here':'Nothing logged')}</small></div>
+      ${kc?`<div class="kc">${fmt(kc)} kcal</div>`:''}<button class="add-btn">+</button></div>
+      ${!items.length&&yItems.length?`<div style="padding:0 16px 12px"><button class="link" id="rpt">↺ Repeat yesterday's ${name.toLowerCase()} (${yItems.length})</button></div>`:''}</div>`);
     meal.querySelector('.add-btn').onclick=e=>{e.stopPropagation();haptic();openAddSheet(name);};
     meal.querySelector('.meal-head').onclick=e=>{if(!e.target.closest('.add-btn'))openAddSheet(name);};
+    const rpt=meal.querySelector('#rpt');
+    if(rpt)rpt.onclick=e=>{e.stopPropagation();haptic();const dd=dayData();
+      dd.log.push(...yItems.map(x=>({...x,uid:Date.now()+''+Math.random()+x.uid})));saveDay(state.date,dd);toast(`Repeated ${name.toLowerCase()}`);render();};
     items.forEach(it=>meal.appendChild(logRow(it)));
     scr.appendChild(meal);
   });
@@ -699,11 +754,16 @@ function stopStream(){if(activeStream){activeStream.getTracks().forEach(t=>t.sto
 function guessMeal(){const h=new Date().getHours();if(h<10)return'Breakfast';if(h<15)return'Lunch';if(h<18)return'Snacks';return'Dinner';}
 
 function openAddSheet(meal){
-  const guess=meal||guessMeal();let cat='All',query='';
+  const guess=meal||guessMeal();let cat='All',query='',diet=dietPref();
   const sheet=el(`<div class="sheet"><div class="sheet-grab"></div>
     <div class="sheet-head"><h3>Add to ${guess}</h3><button class="icon-btn" id="cls">✕</button></div>
     <div class="sheet-body">
       <div class="search">🔍<input id="q" placeholder="Search idli, egg, dosa…" autocomplete="off" autocorrect="off"><button class="mic" id="mic">🎤</button></div>
+      <div class="seg" id="dietSeg" style="margin-bottom:12px">
+        <button class="${diet==='veg'?'on':''}" data-d="veg">🟢 Veg</button>
+        <button class="${diet==='egg'?'on':''}" data-d="egg">🥚 +Egg</button>
+        <button class="${diet==='all'?'on':''}" data-d="all">🍗 All</button>
+      </div>
       <div class="tool-row">
         <button class="tool" id="scan"><span class="ti">📷</span>Scan barcode</button>
         <button class="tool" id="photo"><span class="ti">📸</span>Photo meal</button>
@@ -714,6 +774,9 @@ function openAddSheet(meal){
   sheet.querySelector('#scan').onclick=()=>openScanner(guess);
   sheet.querySelector('#photo').onclick=()=>openPhoto(guess);
   sheet.querySelector('#create').onclick=()=>openCustomFood(guess);
+  const dietSeg=sheet.querySelector('#dietSeg');
+  dietSeg.querySelectorAll('button').forEach(b=>{b.onclick=()=>{haptic();diet=b.dataset.d;store.set('dietPref',diet);
+    dietSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');paint();};});
   const chips=sheet.querySelector('#chips');
   ['All','Recent','Favourites','Frequent','Breakfast','Lunch','Dinner','Snacks','Drinks','Sweets','My foods'].forEach(c=>{
     const ch=el(`<button class="chip ${c==='All'?'on':''}">${c}</button>`);
@@ -728,7 +791,7 @@ function openAddSheet(meal){
       rec.onresult=e=>{q.value=e.results[0][0].transcript.replace(/[.?!]$/,'');query=q.value.trim().toLowerCase();paint();};
       rec.onerror=()=>toast('Could not hear that');rec.onend=()=>micBtn.classList.remove('rec');rec.start();}catch(e){toast('Voice not available');micBtn.classList.remove('rec');}};
 
-  function matches(f){if(!query)return true;return f.name.toLowerCase().includes(query)||f.aliases.some(a=>a.toLowerCase().includes(query));}
+  function matches(f){if(!dietAllowed(f.diet,diet))return false;if(!query)return true;return f.name.toLowerCase().includes(query)||f.aliases.some(a=>a.toLowerCase().includes(query));}
   function pool(){
     if(cat==='Recent')return state.recent.map(foodById).filter(Boolean);
     if(cat==='Favourites')return state.favs.map(foodById).filter(Boolean);
@@ -977,6 +1040,46 @@ function openMacroSheet(name,key,goal,color){
     <div class="fr-t"><b>${it.name}</b><small>${it.meal} · ${it.portion}</small></div>
     <div class="fr-k"><b style="color:${color}">${fmt(it.val)} g</b><br><span class="muted" style="font-size:11px">${Math.round(it.val/total*100)}%</span></div></div>`)));
   openSheet(sheet);
+}
+
+/* -------- "What should I eat?" suggestions -------- */
+function openSuggestSheet(remaining){
+  let diet=dietPref();
+  const sheet=el(`<div class="sheet"><div class="sheet-grab"></div>
+    <div class="sheet-head"><h3 style="flex:1">What should I eat?</h3><button class="icon-btn" id="cls">✕</button></div>
+    <div class="sheet-body">
+      <div class="muted" style="font-size:13px;padding:0 4px 10px">Ranked by protein per calorie, so the top picks close your biggest gap first. Tap one to log it.</div>
+      <div class="macro-preview" style="grid-template-columns:repeat(4,1fr)">
+        <div class="mp kc"><b>${fmt(Math.max(0,remaining.kcal))}</b><small>kcal left</small></div>
+        <div class="mp"><b>${fmt(remaining.p)}</b><small>protein</small></div>
+        <div class="mp"><b>${fmt(remaining.c)}</b><small>carbs</small></div>
+        <div class="mp"><b>${fmt(remaining.f)}</b><small>fat</small></div>
+      </div>
+      <div class="seg" id="dietSeg" style="margin:14px 0 4px">
+        <button class="${diet==='veg'?'on':''}" data-d="veg">🟢 Veg</button>
+        <button class="${diet==='egg'?'on':''}" data-d="egg">🥚 +Egg</button>
+        <button class="${diet==='all'?'on':''}" data-d="all">🍗 All</button>
+      </div>
+      <div class="card-title" style="padding:10px 4px 6px">Suggestions</div>
+      <div id="sugList"></div>
+    </div></div>`);
+  sheet.querySelector('#cls').onclick=closeSheet;
+  const dietSeg=sheet.querySelector('#dietSeg'),list=sheet.querySelector('#sugList');
+  dietSeg.querySelectorAll('button').forEach(b=>{b.onclick=()=>{haptic();diet=b.dataset.d;store.set('dietPref',diet);
+    dietSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');paint();};});
+  function paint(){
+    list.innerHTML='';
+    const results=suggestFoods(remaining,diet);
+    if(!results.length){list.appendChild(el(`<div class="empty"><div class="e-emoji">🍽️</div>Nothing fits that filter right now.</div>`));return;}
+    results.forEach(({f,dp,m})=>{
+      const row=el(`<div class="food-row"><div class="food-emoji">${f.emoji}</div>
+        <div class="fr-t"><b>${f.name}</b><small>${dp[0]} · ${fmt(m.p)}g protein</small></div>
+        <div class="fr-k"><b>${fmt(m.kcal)}</b><br><span class="muted" style="font-size:11px">kcal</span></div></div>`);
+      row.onclick=()=>{closeSheet();openPortionSheet(f,guessMeal());};
+      list.appendChild(row);
+    });
+  }
+  paint();openSheet(sheet);
 }
 
 /* ---------------- DIARY ---------------- */
