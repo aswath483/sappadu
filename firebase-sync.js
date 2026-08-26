@@ -92,34 +92,46 @@ function schedulePush(profileId, prefix) {
 }
 
 async function pushNow(profileId, prefix) {
-  if (!(await ensureInit())) return;
+  if (!(await ensureInit())) return false;
   await authReady;
   const { doc, setDoc, serverTimestamp } = fns;
   try {
     await setDoc(doc(db, COLLECTION, profileId), { data: snapshotLocal(prefix), updatedAt: serverTimestamp() });
     localStorage.setItem(lastSyncedKey(prefix), String(Date.now()));
-  } catch (e) { console.warn('[sappadu-sync] push failed', e); }
+    return true;
+  } catch (e) { console.warn('[sappadu-sync] push failed', e); return false; }
 }
 
 // Call once at startup, before the first render — pulls the given profile's
 // latest cloud snapshot into localStorage if it's newer than what's already
 // here. Only ever touches that one profile's own document/prefix.
 export async function pullProfile(profileId, prefix) {
-  if (!(await ensureInit())) return;
+  if (!(await ensureInit())) return false;
   await authReady;
   const { doc, getDoc } = fns;
   try {
     const snap = await getDoc(doc(db, COLLECTION, profileId));
-    if (!snap.exists()) { await pushNow(profileId, prefix); return; } // nothing in the cloud yet — seed it
+    if (!snap.exists()) return await pushNow(profileId, prefix); // nothing in the cloud yet — seed it
     const remote = snap.data();
     const remoteMs = remote.updatedAt?.toMillis() ?? 0;
     const localMs = Number(localStorage.getItem(lastSyncedKey(prefix)) || 0);
-    if (remoteMs <= localMs) return;
+    if (remoteMs <= localMs) return true;
     applyingRemote.add(prefix);
     for (const [k, v] of Object.entries(remote.data || {})) localStorage.setItem(k, v);
     localStorage.setItem(lastSyncedKey(prefix), String(remoteMs));
     applyingRemote.delete(prefix);
-  } catch (e) { console.warn('[sappadu-sync] pull failed', e); }
+    return true;
+  } catch (e) { console.warn('[sappadu-sync] pull failed', e); return false; }
+}
+
+// Manual sync trigger for a "Sync now" button — pushes current local state
+// immediately (bypassing the usual 1.5s debounce) then pulls in case the
+// cloud has something newer. Returns whether it actually succeeded, so the
+// caller can show a real success/failure state instead of guessing from timing.
+export async function syncNow(profileId, prefix) {
+  const pushed = await pushNow(profileId, prefix);
+  const pulled = await pullProfile(profileId, prefix);
+  return pushed && pulled;
 }
 
 // Read-only look at another profile's cloud document — never writes anything,

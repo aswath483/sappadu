@@ -230,7 +230,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.01em}
 <input type="file" id="photoInput" accept="image/*" capture="environment" class="hide" />
 
 <script type="module">
-import { isFirebaseConfigured, pullProfile, watchProfile, peekProfile, syncStatus } from './firebase-sync.js';
+import { isFirebaseConfigured, pullProfile, watchProfile, peekProfile, syncStatus, syncNow } from './firebase-sync.js';
 /* ============================================================
    Sappadu — South Indian Nutrition Tracker (offline mobile PWA)
 ============================================================ */
@@ -1464,13 +1464,22 @@ function renderProfile(scr){
 
   const pc=el(`<div class="card" style="margin:12px 0 0"><div class="card-title">Profile</div>
     <div class="row-between" style="padding:6px 0"><span class="muted">Signed in as</span><b>${profileLabel(activeProfileId)}</b></div>
-    ${isFirebaseConfigured?`<div class="row-between" style="padding:6px 0"><span class="muted">Cloud sync</span><b id="syncLbl" style="font-weight:600;font-size:13px">…</b></div>`:''}
+    ${isFirebaseConfigured?`<div class="row-between" style="padding:6px 0"><span class="muted">Cloud sync</span><b id="syncLbl" style="font-weight:600;font-size:13px">…</b></div>
+    <button class="btn btn-tonal" id="syncNowBtn" style="margin-top:4px">🔄 Sync now</button>`:''}
     <button class="btn btn-tonal" id="swp" style="margin-top:6px">🔁 Switch to ${profileLabel(PROFILES.find(x=>x.id!==activeProfileId).id)}</button></div>`);
   pc.querySelector('#swp').onclick=()=>{const other=PROFILES.find(x=>x.id!==activeProfileId).id;confirmSheet(`Switch to ${profileLabel(other)}'s profile?`,()=>switchProfile(other),{confirmLabel:'Switch'});};
   if(isFirebaseConfigured){
     const st=syncStatus(profileKeyPrefix(activeProfileId));
     const lbl=pc.querySelector('#syncLbl');
     lbl.textContent=!st.online?'📴 Offline':st.pending?'⏳ Syncing…':st.lastSyncedAt?`🔄 Synced ${timeAgo(st.lastSyncedAt)}`:'⏳ Not synced yet';
+    const syncBtn=pc.querySelector('#syncNowBtn');
+    syncBtn.onclick=async()=>{
+      haptic();syncBtn.disabled=true;syncBtn.textContent='⏳ Syncing…';
+      const ok=await syncNow(activeProfileId,profileKeyPrefix(activeProfileId));
+      resyncStateFromStore();
+      toast(ok?'Synced ✅':"Couldn't sync — check your connection");
+      render();
+    };
   }
   scr.appendChild(pc);
 
