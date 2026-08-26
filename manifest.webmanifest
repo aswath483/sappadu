@@ -1,0 +1,20 @@
+{
+  "name": "Sappadu — South Indian Nutrition Tracker",
+  "short_name": "Sappadu",
+  "description": "Track calories, protein and macros from authentic South Indian foods. Works offline.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF7F2",
+  "theme_color": "#A8560E",
+  "categories": ["health", "fitness", "lifestyle"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='104' fill='%23A8560E'/%3E%3Ccircle cx='256' cy='272' r='132' fill='%23FBF7F2'/%3E%3Ccircle cx='256' cy='272' r='74' fill='%233E6B3A'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
