@@ -981,6 +981,22 @@ function attachSheetDrag(node){const grab=node.querySelector('.sheet-grab');if(!
     h.addEventListener('touchmove',e=>{if(!drag)return;dy=e.touches[0].clientY-y0;if(dy>0)node.style.transform=`translateY(${dy}px)`;},{passive:true});
     h.addEventListener('touchend',()=>{if(!drag)return;drag=false;node.style.transition='transform .3s';if(dy>120)closeSheet();else node.style.transform='';});});}
 function stopStream(){if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}}
+// In-app replacement for window.confirm() — native confirm/alert/prompt are
+// unreliable (often silently a no-op, with no dialog and no error) once the
+// app is installed to a home screen and running standalone, on iOS Safari in
+// particular. Every destructive action needs an actual confirmation UI that
+// works there too, so this is the one place any of them should go through.
+function confirmSheet(message,onConfirm,opts={}){
+  const sheet=el(`<div class="sheet"><div class="sheet-grab"></div>
+    <div class="sheet-body" style="padding-top:6px">
+      <div style="font-size:15px;font-weight:600;padding:10px 6px 20px;text-align:center">${message}</div>
+      <button class="btn btn-danger" id="ok" style="margin-bottom:10px">${opts.confirmLabel||'Delete'}</button>
+      <button class="btn btn-tonal" id="cancel">Cancel</button>
+    </div></div>`);
+  sheet.querySelector('#ok').onclick=()=>{closeSheet();onConfirm();};
+  sheet.querySelector('#cancel').onclick=closeSheet;
+  openSheet(sheet);
+}
 
 function guessMeal(){const h=new Date().getHours();if(h<10)return'Breakfast';if(h<15)return'Lunch';if(h<18)return'Snacks';return'Dinner';}
 
@@ -1352,7 +1368,7 @@ function renderDiary(scr){
     dayBtns.appendChild(fillBtn);
   }
   const clearBtn=el(`<button class="btn btn-tonal" style="color:var(--clay);${gap>150?'':'flex:1'}">🗑️ Clear day</button>`);
-  clearBtn.onclick=()=>{if(confirm(`Delete all ${d.log.length} item${d.log.length>1?'s':''} logged for this day?`)){haptic(20);const dd=dayData();dd.log=[];saveDay(state.date,dd);toast('Day cleared');render();}};
+  clearBtn.onclick=()=>{confirmSheet(`Delete all ${d.log.length} item${d.log.length>1?'s':''} logged for this day?`,()=>{haptic(20);const dd=dayData();dd.log=[];saveDay(state.date,dd);toast('Day cleared');render();});};
   dayBtns.appendChild(clearBtn);
   scr.appendChild(dayBtns);
   scr.appendChild(el(`<div class="hero" style="margin-top:14px"><div class="row-between">
@@ -1450,7 +1466,7 @@ function renderProfile(scr){
     <div class="row-between" style="padding:6px 0"><span class="muted">Signed in as</span><b>${profileLabel(activeProfileId)}</b></div>
     ${isFirebaseConfigured?`<div class="row-between" style="padding:6px 0"><span class="muted">Cloud sync</span><b id="syncLbl" style="font-weight:600;font-size:13px">…</b></div>`:''}
     <button class="btn btn-tonal" id="swp" style="margin-top:6px">🔁 Switch to ${profileLabel(PROFILES.find(x=>x.id!==activeProfileId).id)}</button></div>`);
-  pc.querySelector('#swp').onclick=()=>{const other=PROFILES.find(x=>x.id!==activeProfileId).id;if(confirm(`Switch to ${profileLabel(other)}'s profile?`))switchProfile(other);};
+  pc.querySelector('#swp').onclick=()=>{const other=PROFILES.find(x=>x.id!==activeProfileId).id;confirmSheet(`Switch to ${profileLabel(other)}'s profile?`,()=>switchProfile(other),{confirmLabel:'Switch'});};
   if(isFirebaseConfigured){
     const st=syncStatus(profileKeyPrefix(activeProfileId));
     const lbl=pc.querySelector('#syncLbl');
@@ -1483,10 +1499,10 @@ function renderProfile(scr){
       if(d.profile){store.set('profile',d.profile);state.profile=d.profile;}if(d.days)store.set('days',d.days);if(d.weights)store.set('weights',d.weights);
       if(d.customFoods)store.set('customFoods',d.customFoods);if(d.favs){store.set('favs',d.favs);state.favs=d.favs;}if(d.freq){store.set('freq',d.freq);state.freq=d.freq;}if(d.recent){store.set('recent',d.recent);state.recent=d.recent;}
       toast('Data restored');render();}catch(e){toast('Invalid backup file');}};r.readAsText(f);};inp.click();};
-  btns.querySelector('#reset').onclick=()=>{if(confirm(`Delete ${profileLabel(activeProfileId)}'s logged data and start over? This won't affect ${profileLabel(PROFILES.find(x=>x.id!==activeProfileId).id)}'s data.`)){
+  btns.querySelector('#reset').onclick=()=>{confirmSheet(`Delete ${profileLabel(activeProfileId)}'s logged data and start over? This won't affect ${profileLabel(PROFILES.find(x=>x.id!==activeProfileId).id)}'s data.`,()=>{
     const prefix=profileKeyPrefix(activeProfileId);
     try{Object.keys(localStorage).filter(k=>k.startsWith(prefix)).forEach(k=>localStorage.removeItem(k));}catch(e){}
-    location.reload();}};
+    location.reload();});};
   scr.appendChild(btns);
   scr.appendChild(el(`<div class="muted" style="text-align:center;font-size:11px;padding:8px 20px 20px">Sappadu · Works offline · Data stays on your device.<br>Nutrition values are approximate references for South Indian foods.</div>`));
 }
