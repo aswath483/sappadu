@@ -679,13 +679,21 @@ function autoFillDay(date){
   const dd=dayData(date),dtype=dd.type||'train',g=calcGoals(state.profile,dtype),diet=dietPref();
   const tot=dd.log.reduce((a,x)=>({kcal:a.kcal+x.m.kcal,p:a.p+x.m.p,c:a.c+x.m.c,f:a.f+x.m.f}),{kcal:0,p:0,c:0,f:0});
   const dayGap={kcal:Math.max(0,g.cal-tot.kcal),p:Math.max(0,g.protein-tot.p),c:Math.max(0,g.carbs-tot.c),f:Math.max(0,g.fat-tot.f)};
-  const usedIds=new Set(dd.log.map(x=>x.id)); // no dish twice in one auto-filled day (also across repeat top-ups)
+  // No dish twice in one auto-filled day, and steer away from what the previous
+  // day had too — otherwise the top-ranked pick for a given meal/diet/budget is
+  // the same food every time, so back-to-back auto-filled days would look
+  // identical. Picking randomly among the top few fits (not always #1) is what
+  // actually gives day-to-day variety; avoiding yesterday's dishes on top of
+  // that keeps it from just alternating between the same two options.
+  const yesterday=dayData(todayKey(new Date(new Date(date).getTime()-864e5)));
+  const usedIds=new Set([...dd.log.map(x=>x.id),...yesterday.log.map(x=>x.id)]);
   AUTO_FILL_MEALS.forEach(([name,weight],mi)=>{
     let rem={kcal:dayGap.kcal*weight,p:dayGap.p*weight,c:dayGap.c*weight,f:dayGap.f*weight};
     for(let i=0;i<4&&rem.kcal>80;i++){
-      const picks=suggestForMeal(rem,diet,name).filter(x=>!usedIds.has(x.f.id));
+      let picks=suggestForMeal(rem,diet,name).filter(x=>!usedIds.has(x.f.id));
+      if(!picks.length)picks=suggestForMeal(rem,diet,name); // yesterday's foods are fine again if nothing else fits
       if(!picks.length)break;
-      const {f,dp}=picks[0];
+      const {f,dp}=picks[Math.floor(Math.random()*Math.min(picks.length,4))];
       // Ranking picks the food at its default portion, but a single default
       // serving (say, one idli) is usually far smaller than a meal's whole
       // budget — scale the portion up to actually fill most of what's left
@@ -1337,11 +1345,16 @@ function renderDiary(scr){
     scr.appendChild(emp);return;}
   const g=calcGoals(state.profile,d.type||'train'),tot=d.log.reduce((a,x)=>({kcal:a.kcal+x.m.kcal,p:a.p+x.m.p,c:a.c+x.m.c,f:a.f+x.m.f}),{kcal:0,p:0,c:0,f:0});
   const gap=g.cal-tot.kcal;
+  const dayBtns=el(`<div style="display:flex;gap:8px;margin-top:14px"></div>`);
   if(gap>150){
-    const fillBtn=el(`<button class="btn btn-tonal" style="margin-top:14px">✨ Auto-fill remaining (${fmt(gap)} kcal)</button>`);
+    const fillBtn=el(`<button class="btn btn-tonal" style="flex:1">✨ Auto-fill remaining (${fmt(gap)} kcal)</button>`);
     fillBtn.onclick=()=>{haptic(15);autoFillDay(state.date);toast('Filled remaining ✨');render();};
-    scr.appendChild(fillBtn);
+    dayBtns.appendChild(fillBtn);
   }
+  const clearBtn=el(`<button class="btn btn-tonal" style="color:var(--clay);${gap>150?'':'flex:1'}">🗑️ Clear day</button>`);
+  clearBtn.onclick=()=>{if(confirm(`Delete all ${d.log.length} item${d.log.length>1?'s':''} logged for this day?`)){haptic(20);const dd=dayData();dd.log=[];saveDay(state.date,dd);toast('Day cleared');render();}};
+  dayBtns.appendChild(clearBtn);
+  scr.appendChild(dayBtns);
   scr.appendChild(el(`<div class="hero" style="margin-top:14px"><div class="row-between">
     <div><div class="ring-lbl">Total for the day</div><div style="font-size:30px;font-weight:800;color:var(--amber)">${fmt(tot.kcal)} <span class="muted" style="font-size:15px">/ ${fmt(g.cal)} kcal</span></div></div>
     <div class="muted" style="text-align:right;font-size:12px">P ${fmt(tot.p)}g<br>C ${fmt(tot.c)}g<br>F ${fmt(tot.f)}g</div></div></div>`));
