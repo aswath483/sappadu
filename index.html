@@ -557,6 +557,21 @@ function portionsFor(f){
 }
 function computeMacros(f,grams){const k=grams/100,m={};for(const key in f.per100)m[key]=f.per100[key]*k;return m;}
 function defaultPortion(f){const ps=portionsFor(f);let i=ps.findIndex(p=>/^1 /.test(p[0])&&!/^1 (g|ml)$/.test(p[0]));if(i<0)i=1;return ps[i]||ps[0];}
+// Scales a portion's label along with its grams (e.g. "1 pc" x3 grams -> "3 pc")
+// instead of falling back to a raw gram count that would read redundantly next
+// to logRow's own "portion · Xg" display. Used when auto-filling a day, where
+// the picked portion is resized to fit the meal's remaining budget.
+function scalePortionLabel(dp,grams){
+  const [label,defaultGrams]=dp;
+  if(Math.abs(grams-defaultGrams)<0.5)return label;
+  const m=label.match(/^(\d+(?:\.\d+)?|½|¾|¼)\s+(.+)$/);
+  if(m&&!/^(g|ml)$/.test(m[2])){
+    const baseCount=({'½':0.5,'¾':0.75,'¼':0.25})[m[1]]??parseFloat(m[1]);
+    const count=Math.round((baseCount*grams/defaultGrams)*2)/2;
+    return `${count} ${m[2]}`;
+  }
+  return Math.round(grams)+' g';
+}
 
 const MEALS=[["Breakfast","🌅"],["Lunch","🍛"],["Dinner","🌙"],["Snacks","🍎"],["Drinks","🥤"],["Dessert","🍬"],["Pre Workout","⚡"],["Post Workout","💪"]];
 
@@ -602,14 +617,64 @@ function fmtL(ml){const l=Math.round((ml||0)/10)/100;return (Number.isInteger(l)
    naturally leads with whatever closes the day's biggest usual gap — protein
    — first. Portions far past what's left on the calorie budget are dropped,
    with a small floor so something always shows even once you're near/over. */
-function suggestFoods(remaining,diet,limit=15){
+function rankByProteinDensity(pool,remaining,limit=15){
   const kcalCap=Math.max(remaining.kcal,100)*1.3;
-  return allFoods()
-    .filter(f=>dietAllowed(f.diet,diet))
+  return pool
     .map(f=>{const dp=defaultPortion(f);const m=computeMacros(f,dp[1]);return {f,dp,m};})
     .filter(x=>x.m.kcal>0&&x.m.kcal<=kcalCap)
     .sort((a,b)=>(b.m.p/b.m.kcal)-(a.m.p/a.m.kcal))
     .slice(0,limit);
+}
+function suggestFoods(remaining,diet,limit=15){
+  return rankByProteinDensity(allFoods().filter(f=>dietAllowed(f.diet,diet)),remaining,limit);
+}
+// Same ranking, but tries foods tagged for this meal first (breakfast items for
+// Breakfast, etc. — same category convention as the Add Food filter) and only
+// falls back to the full pool if nothing in that category fits. Used by the
+// day auto-fill/simulation below, where meal-appropriateness matters more than
+// it does for the single "what should I eat right now" list.
+function suggestForMeal(remaining,diet,mealName,limit=8){
+  const dietPool=allFoods().filter(f=>dietAllowed(f.diet,diet));
+  const catPool=dietPool.filter(f=>f.cat===mealName||(mealName==='Dinner'&&f.cat==='Lunch'));
+  return rankByProteinDensity(catPool.length?catPool:dietPool,remaining,limit);
+}
+// Simulates a full day of eating to hit tomorrow's (or any day's) target —
+// greedily fills each meal slot with the top-ranked pick for whatever's left
+// of that meal's share of the day's remaining calories/macros, same idea as
+// "What should I eat?" but run automatically across a whole day instead of
+// one gap. Every meal gets at most 3 items so it reads like a real day, not
+// a grocery list. Writes straight into that date's log — since it uses the
+// exact same log entries as manually-added food, planning tomorrow IS
+// tomorrow's diary; open it, tweak/swap anything, or leave it as your plan.
+const AUTO_FILL_MEALS=[['Breakfast',0.25],['Lunch',0.35],['Dinner',0.30],['Snacks',0.10]];
+function autoFillDay(date){
+  const dd=dayData(date),dtype=dd.type||'train',g=calcGoals(state.profile,dtype),diet=dietPref();
+  const tot=dd.log.reduce((a,x)=>({kcal:a.kcal+x.m.kcal,p:a.p+x.m.p,c:a.c+x.m.c,f:a.f+x.m.f}),{kcal:0,p:0,c:0,f:0});
+  const dayGap={kcal:Math.max(0,g.cal-tot.kcal),p:Math.max(0,g.protein-tot.p),c:Math.max(0,g.carbs-tot.c),f:Math.max(0,g.fat-tot.f)};
+  const usedIds=new Set(dd.log.map(x=>x.id)); // no dish twice in one auto-filled day (also across repeat top-ups)
+  AUTO_FILL_MEALS.forEach(([name,weight],mi)=>{
+    let rem={kcal:dayGap.kcal*weight,p:dayGap.p*weight,c:dayGap.c*weight,f:dayGap.f*weight};
+    for(let i=0;i<4&&rem.kcal>80;i++){
+      const picks=suggestForMeal(rem,diet,name).filter(x=>!usedIds.has(x.f.id));
+      if(!picks.length)break;
+      const {f,dp}=picks[0];
+      // Ranking picks the food at its default portion, but a single default
+      // serving (say, one idli) is usually far smaller than a meal's whole
+      // budget — scale the portion up to actually fill most of what's left
+      // (never below the default serving, capped at a flat realistic max — a
+      // multiple of the default portion isn't safe here since default sizes
+      // range from ~10g garnishes to 350g bowls) rather than always logging
+      // the smallest serving and needing an unrealistic item count.
+      const perGramKcal=f.per100.kcal/100;
+      const grams=perGramKcal>0?Math.max(dp[1],Math.min((rem.kcal*0.8)/perGramKcal,450)):dp[1];
+      const m=computeMacros(f,grams);
+      const portion=scalePortionLabel(dp,grams);
+      dd.log.push({uid:Date.now()+''+Math.random()+mi+i,id:f.id,name:f.name,emoji:f.emoji,meal:name,portion,grams,m});
+      usedIds.add(f.id);
+      rem={kcal:rem.kcal-m.kcal,p:rem.p-m.p,c:rem.c-m.c,f:rem.f-m.f};
+    }
+  });
+  saveDay(date,dd);
 }
 
 const $=(s,el=document)=>el.querySelector(s);
@@ -1150,21 +1215,39 @@ function openSuggestSheet(remaining){
 
 /* ---------------- DIARY ---------------- */
 function renderDiary(scr){
-  const dates=[];for(let i=0;i<7;i++)dates.push(todayKey(new Date(Date.now()-i*864e5)));
+  const tmr=todayKey(new Date(Date.now()+864e5));
+  const dates=[tmr];for(let i=0;i<7;i++)dates.push(todayKey(new Date(Date.now()-i*864e5)));
   const seg=el(`<div class="card" style="padding:14px"><div class="card-title">Jump to a day</div><div class="chips" id="dchips"></div></div>`);
   const dc=seg.querySelector('#dchips');
-  dates.forEach(dt=>{const lbl=dt===todayKey()?'Today':new Date(dt).toLocaleDateString('en-IN',{weekday:'short',day:'numeric'});
+  dates.forEach(dt=>{const lbl=dt===tmr?'✨ Tomorrow':dt===todayKey()?'Today':new Date(dt).toLocaleDateString('en-IN',{weekday:'short',day:'numeric'});
     const c=el(`<button class="chip ${dt===state.date?'on':''}">${lbl}</button>`);c.onclick=()=>{haptic();state.date=dt;render();};dc.appendChild(c);});
   scr.appendChild(seg);
+  const isFuture=state.date>todayKey();
+  if(isFuture)scr.appendChild(el(`<div class="muted" style="font-size:12px;padding:2px 4px 10px">📅 Planning mode — add or auto-fill what you plan to eat. This becomes that day's diary, so tweak anything before or after.</div>`));
   const d=dayData();
+  const dtypeSeg=el(`<div class="seg" style="margin-bottom:12px"><button class="${(d.type||'train')==='train'?'on':''}">🏋️ Training day</button><button class="${(d.type||'train')==='rest'?'on':''}">😴 Rest day</button></div>`);
+  dtypeSeg.children[0].onclick=()=>{haptic();const dd=dayData();dd.type='train';saveDay(state.date,dd);render();};
+  dtypeSeg.children[1].onclick=()=>{haptic();const dd=dayData();dd.type='rest';saveDay(state.date,dd);render();};
+  scr.appendChild(dtypeSeg);
   if(!d.log.length){
-    const yk=todayKey(new Date(new Date(state.date).getTime()-864e5)),yd=dayData(yk);
-    const emp=el(`<div class="empty"><div class="e-emoji">📖</div>Nothing logged for this day.<br>
-      ${yd.log.length?`<button class="btn btn-tonal" id="copy" style="margin-top:16px">📋 Copy yesterday's meals (${yd.log.length})</button>`:''}
-      <div style="margin-top:14px"><button class="btn btn-primary" id="addf" style="width:auto;padding:14px 24px">+ Add food</button></div></div>`);
-    if(yd.log.length)emp.querySelector('#copy').onclick=()=>{haptic();const dd=dayData();dd.log=yd.log.map(x=>({...x,uid:Date.now()+''+Math.random()}));saveDay(state.date,dd);toast('Copied yesterday');render();};
-    emp.querySelector('#addf').onclick=()=>openAddSheet();scr.appendChild(emp);return;}
+    const yk=todayKey(new Date(new Date(state.date).getTime()-864e5)),yd=dayData(yk),yLabel=yk===todayKey()?"today's":"yesterday's";
+    const emp=el(`<div class="empty"><div class="e-emoji">${isFuture?'📅':'📖'}</div>${isFuture?"Plan what you'll eat — nothing set for this day yet.":'Nothing logged for this day.'}<br>
+      ${yd.log.length?`<button class="btn btn-tonal" id="copy" style="margin-top:16px">📋 Copy ${yLabel} meals (${yd.log.length})</button>`:''}
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        <button class="btn btn-primary" id="addf" style="width:auto;padding:14px 24px">+ Add food</button>
+        <button class="btn btn-tonal" id="auto" style="width:auto;padding:14px 24px">✨ Auto-fill day</button>
+      </div></div>`);
+    if(yd.log.length)emp.querySelector('#copy').onclick=()=>{haptic();const dd=dayData();dd.log=yd.log.map(x=>({...x,uid:Date.now()+''+Math.random()}));saveDay(state.date,dd);toast(`Copied ${yLabel} meals`);render();};
+    emp.querySelector('#addf').onclick=()=>openAddSheet();
+    emp.querySelector('#auto').onclick=()=>{haptic(15);autoFillDay(state.date);toast('Day planned ✨');render();};
+    scr.appendChild(emp);return;}
   const g=calcGoals(state.profile,d.type||'train'),tot=d.log.reduce((a,x)=>({kcal:a.kcal+x.m.kcal,p:a.p+x.m.p,c:a.c+x.m.c,f:a.f+x.m.f}),{kcal:0,p:0,c:0,f:0});
+  const gap=g.cal-tot.kcal;
+  if(gap>150){
+    const fillBtn=el(`<button class="btn btn-tonal" style="margin-top:14px">✨ Auto-fill remaining (${fmt(gap)} kcal)</button>`);
+    fillBtn.onclick=()=>{haptic(15);autoFillDay(state.date);toast('Filled remaining ✨');render();};
+    scr.appendChild(fillBtn);
+  }
   scr.appendChild(el(`<div class="hero" style="margin-top:14px"><div class="row-between">
     <div><div class="ring-lbl">Total for the day</div><div style="font-size:30px;font-weight:800;color:var(--amber)">${fmt(tot.kcal)} <span class="muted" style="font-size:15px">/ ${fmt(g.cal)} kcal</span></div></div>
     <div class="muted" style="text-align:right;font-size:12px">P ${fmt(tot.p)}g<br>C ${fmt(tot.c)}g<br>F ${fmt(tot.f)}g</div></div></div>`));
