@@ -545,6 +545,26 @@ function dietAllowed(foodDiet,pref){
   return (DIET_RANK[foodDiet]??2)<=(DIET_RANK[pref]??2);
 }
 function dietPref(){return store.get('dietPref','all');}
+function healthyMode(){return store.get('healthyMode',false);}
+
+/* ---- "Healthy" is derived from the existing macro data, not a stored tag —
+   no need to hand-classify 200+ foods. Excludes sweets/desserts and sugary
+   drinks outright, then anything high in sugar/sodium or calorie-dense
+   without the fibre or protein to justify it (fried snacks, heavy gravies).
+   What's left — vegetables, legumes, nuts, whole grains, lean meat/fish/egg —
+   covers both veg and non-veg, same as asked for. Tunable in one place if a
+   specific food looks miscategorised. ---- */
+function isHealthyFood(f){
+  const per=f.per100;if(!per||!per.kcal)return false;
+  if(f.cat==='Sweets'||f.cat==='Dessert')return false;
+  if(f.cat==='Drinks'&&per.sug>8)return false;
+  if(per.sug>15||per.sod>700)return false;
+  const fibreRich=per.fib>=2;
+  const proteinDense=(per.p*4)/per.kcal>=0.18;
+  const calorieDenseAndEmpty=per.kcal>350&&!fibreRich&&!proteinDense;
+  if(calorieDenseAndEmpty)return false;
+  return fibreRich||proteinDense;
+}
 
 function portionsFor(f){
   const g=f.gPerUnit;
@@ -661,10 +681,15 @@ function suggestFoods(remaining,diet,limit=15){
 // falls back to the full pool if nothing in that category fits. Used by the
 // day auto-fill/simulation below, where meal-appropriateness matters more than
 // it does for the single "what should I eat right now" list.
-function suggestForMeal(remaining,diet,mealName,limit=8){
+function suggestForMeal(remaining,diet,mealName,healthyOnly,limit=8){
   const dietPool=allFoods().filter(f=>dietAllowed(f.diet,diet));
-  const catPool=dietPool.filter(f=>f.cat===mealName||(mealName==='Dinner'&&f.cat==='Lunch'));
-  return rankByProteinDensity(catPool.length?catPool:dietPool,remaining,limit);
+  // Healthy Mode narrows to isHealthyFood() first, same hard-filter-with-
+  // fallback shape as the meal-category narrowing below: if nothing healthy
+  // fits this diet, fall back to the full diet pool rather than skip the meal.
+  const healthyPool=healthyOnly?dietPool.filter(isHealthyFood):dietPool;
+  const basePool=healthyPool.length?healthyPool:dietPool;
+  const catPool=basePool.filter(f=>f.cat===mealName||(mealName==='Dinner'&&f.cat==='Lunch'));
+  return rankByProteinDensity(catPool.length?catPool:basePool,remaining,limit);
 }
 // Simulates a full day of eating to hit tomorrow's (or any day's) target —
 // greedily fills each meal slot with the top-ranked pick for whatever's left
@@ -676,7 +701,7 @@ function suggestForMeal(remaining,diet,mealName,limit=8){
 // tomorrow's diary; open it, tweak/swap anything, or leave it as your plan.
 const AUTO_FILL_MEALS=[['Breakfast',0.25],['Lunch',0.35],['Dinner',0.30],['Snacks',0.10]];
 function autoFillDay(date){
-  const dd=dayData(date),dtype=dd.type||'train',g=calcGoals(state.profile,dtype),diet=dietPref();
+  const dd=dayData(date),dtype=dd.type||'train',g=calcGoals(state.profile,dtype),diet=dietPref(),healthy=healthyMode();
   const tot=dd.log.reduce((a,x)=>({kcal:a.kcal+x.m.kcal,p:a.p+x.m.p,c:a.c+x.m.c,f:a.f+x.m.f}),{kcal:0,p:0,c:0,f:0});
   const dayGap={kcal:Math.max(0,g.cal-tot.kcal),p:Math.max(0,g.protein-tot.p),c:Math.max(0,g.carbs-tot.c),f:Math.max(0,g.fat-tot.f)};
   // No dish twice in one auto-filled day, and steer away from what the previous
@@ -690,8 +715,8 @@ function autoFillDay(date){
   AUTO_FILL_MEALS.forEach(([name,weight],mi)=>{
     let rem={kcal:dayGap.kcal*weight,p:dayGap.p*weight,c:dayGap.c*weight,f:dayGap.f*weight};
     for(let i=0;i<4&&rem.kcal>80;i++){
-      let picks=suggestForMeal(rem,diet,name).filter(x=>!usedIds.has(x.f.id));
-      if(!picks.length)picks=suggestForMeal(rem,diet,name); // yesterday's foods are fine again if nothing else fits
+      let picks=suggestForMeal(rem,diet,name,healthy).filter(x=>!usedIds.has(x.f.id));
+      if(!picks.length)picks=suggestForMeal(rem,diet,name,healthy); // yesterday's foods are fine again if nothing else fits
       if(!picks.length)break;
       const {f,dp}=picks[Math.floor(Math.random()*Math.min(picks.length,4))];
       // Ranking picks the food at its default portion, but a single default
@@ -816,6 +841,14 @@ function renderHome(scr){
     <button class="link">See list ›</button></div>`);
   suggestCard.onclick=()=>{haptic();openSuggestSheet(remMacros);};
   scr.appendChild(suggestCard);
+
+  const healthyCard=el(`<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:14px">
+    <div style="font-size:26px">🥗</div>
+    <div style="flex:1"><b style="font-size:14px">Healthy options</b>
+      <div class="muted" style="font-size:12px;margin-top:2px">Browse nutrient-dense picks — veg & non-veg</div></div>
+    <button class="link">Explore ›</button></div>`);
+  healthyCard.onclick=()=>{haptic();openHealthySheet();};
+  scr.appendChild(healthyCard);
 
   const partnerSlot=el(`<div class="card hide" style="margin-bottom:14px" id="partnerCard"></div>`);
   scr.appendChild(partnerSlot);
@@ -1331,6 +1364,40 @@ function openSuggestSheet(remaining){
   paint();openSheet(sheet);
 }
 
+// Browsable list of nutrient-dense foods (isHealthyFood) — unlike "What
+// should I eat?" (ranked against a specific calorie/macro gap), this is just
+// for exploring what counts as a healthy pick, filtered by diet preference
+// the same way everywhere else is, so it covers both veg and non-veg options.
+function openHealthySheet(){
+  let diet=dietPref(),query='';
+  const sheet=el(`<div class="sheet"><div class="sheet-grab"></div>
+    <div class="sheet-head"><h3 style="flex:1">🥗 Healthy options</h3><button class="icon-btn" id="cls">✕</button></div>
+    <div class="sheet-body">
+      <div class="search">🔍<input id="q" placeholder="Search healthy foods…" autocomplete="off"></div>
+      <div class="seg" id="dietSeg" style="margin:12px 0 4px">
+        <button class="${diet==='veg'?'on':''}" data-d="veg">🟢 Veg</button>
+        <button class="${diet==='egg'?'on':''}" data-d="egg">🥚 +Egg</button>
+        <button class="${diet==='all'?'on':''}" data-d="all">🍗 All</button>
+      </div>
+      <div class="muted" style="font-size:12px;padding:0 4px 10px">Nutrient-dense picks — vegetables, legumes, nuts, whole grains, lean meat/fish/egg — filtered by your food preference.</div>
+      <div id="hList"></div>
+    </div></div>`);
+  sheet.querySelector('#cls').onclick=closeSheet;
+  const dietSeg=sheet.querySelector('#dietSeg'),list=sheet.querySelector('#hList'),q=sheet.querySelector('#q');
+  dietSeg.querySelectorAll('button').forEach(b=>{b.onclick=()=>{haptic();diet=b.dataset.d;store.set('dietPref',diet);
+    dietSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');paint();};});
+  q.oninput=()=>{query=q.value.trim().toLowerCase();paint();};
+  function paint(){
+    list.innerHTML='';
+    let items=allFoods().filter(f=>dietAllowed(f.diet,diet)&&isHealthyFood(f));
+    if(query)items=items.filter(f=>f.name.toLowerCase().includes(query)||f.aliases.some(a=>a.toLowerCase().includes(query)));
+    items.sort((a,b)=>a.name.localeCompare(b.name));
+    if(!items.length){list.appendChild(el(`<div class="empty"><div class="e-emoji">🥗</div>No healthy matches for this filter.</div>`));return;}
+    items.forEach(f=>list.appendChild(foodRow(f,guessMeal())));
+  }
+  paint();openSheet(sheet);
+}
+
 /* ---------------- DIARY ---------------- */
 function renderDiary(scr){
   const tmr=todayKey(new Date(Date.now()+864e5));
@@ -1347,6 +1414,12 @@ function renderDiary(scr){
   dtypeSeg.children[0].onclick=()=>{haptic();const dd=dayData();dd.type='train';saveDay(state.date,dd);render();};
   dtypeSeg.children[1].onclick=()=>{haptic();const dd=dayData();dd.type='rest';saveDay(state.date,dd);render();};
   scr.appendChild(dtypeSeg);
+  const hm=healthyMode();
+  const healthyRow=el(`<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:12px;padding:14px 16px">
+    <div style="flex:1"><b style="font-size:14px">🥗 Healthy mode</b><div class="muted" style="font-size:12px;margin-top:2px">Auto-fill sticks to nutrient-dense picks — veggies, legumes, nuts, lean protein</div></div>
+    <div class="toggle" style="background:${hm?'var(--green)':'var(--outline)'}"><i style="left:${hm?'23px':'3px'}"></i></div></div>`);
+  healthyRow.querySelector('.toggle').onclick=e=>{haptic();const v=!healthyMode();store.set('healthyMode',v);const tg=e.currentTarget;tg.style.background=v?'var(--green)':'var(--outline)';tg.firstElementChild.style.left=v?'23px':'3px';};
+  scr.appendChild(healthyRow);
   if(!d.log.length){
     const yk=todayKey(new Date(new Date(state.date).getTime()-864e5)),yd=dayData(yk),yLabel=yk===todayKey()?"today's":"yesterday's";
     const emp=el(`<div class="empty"><div class="e-emoji">${isFuture?'📅':'📖'}</div>${isFuture?"Plan what you'll eat — nothing set for this day yet.":'Nothing logged for this day.'}<br>
