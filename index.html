@@ -565,6 +565,16 @@ function isHealthyFood(f){
   if(calorieDenseAndEmpty)return false;
   return fibreRich||proteinDense;
 }
+// Short badge explaining *why* something counts as healthy — nuts and
+// legumes usually clear the fibre bar, lean meat/fish/egg the protein one.
+function healthyReason(f){
+  if(!isHealthyFood(f))return null;
+  return f.per100.fib>=2?'🌾 High fibre':'💪 High protein';
+}
+// Explicit terms rather than a bare /nut/ — that fragment also matches
+// "coconut", which isn't a tree nut and definitely isn't what this is for.
+const NUT_RE=/almond|cashew|walnut|peanut|groundnut|hazelnut|pecan|macadamia|pistachio|badam|kaju|akhrot|verkadalai|mundhiri/i;
+function isNutFood(f){return NUT_RE.test(f.name)||f.aliases.some(a=>NUT_RE.test(a));}
 
 function portionsFor(f){
   const g=f.gPerUnit;
@@ -1368,8 +1378,15 @@ function openSuggestSheet(remaining){
 // should I eat?" (ranked against a specific calorie/macro gap), this is just
 // for exploring what counts as a healthy pick, filtered by diet preference
 // the same way everywhere else is, so it covers both veg and non-veg options.
+function healthyFoodRow(f,meal){
+  const dp=defaultPortion(f),m=computeMacros(f,dp[1]),reason=healthyReason(f);
+  const row=el(`<div class="food-row"><div class="food-emoji">${f.emoji}</div>
+    <div class="fr-t"><b>${f.name}</b><small>${dp[0]}${f.per100.p?' · '+fmt(m.p)+'g protein':''}${reason?' · '+reason:''}</small></div>
+    <div class="fr-k"><b>${fmt(m.kcal)}</b><br><span class="muted" style="font-size:11px">kcal</span></div></div>`);
+  row.onclick=()=>openPortionSheet(f,meal);return row;
+}
 function openHealthySheet(){
-  let diet=dietPref(),query='';
+  let diet=dietPref(),query='',cat='All';
   const sheet=el(`<div class="sheet"><div class="sheet-grab"></div>
     <div class="sheet-head"><h3 style="flex:1">🥗 Healthy options</h3><button class="icon-btn" id="cls">✕</button></div>
     <div class="sheet-body">
@@ -1379,21 +1396,30 @@ function openHealthySheet(){
         <button class="${diet==='egg'?'on':''}" data-d="egg">🥚 +Egg</button>
         <button class="${diet==='all'?'on':''}" data-d="all">🍗 All</button>
       </div>
+      <div class="chips" id="hcats"></div>
       <div class="muted" style="font-size:12px;padding:0 4px 10px">Nutrient-dense picks — vegetables, legumes, nuts, whole grains, lean meat/fish/egg — filtered by your food preference.</div>
       <div id="hList"></div>
     </div></div>`);
   sheet.querySelector('#cls').onclick=closeSheet;
-  const dietSeg=sheet.querySelector('#dietSeg'),list=sheet.querySelector('#hList'),q=sheet.querySelector('#q');
+  const dietSeg=sheet.querySelector('#dietSeg'),list=sheet.querySelector('#hList'),q=sheet.querySelector('#q'),catsEl=sheet.querySelector('#hcats');
   dietSeg.querySelectorAll('button').forEach(b=>{b.onclick=()=>{haptic();diet=b.dataset.d;store.set('dietPref',diet);
     dietSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');paint();};});
+  ['All','Breakfast','Lunch','Dinner','Snacks','Drinks','🥜 Nuts'].forEach(c=>{
+    const ch=el(`<button class="chip ${c==='All'?'on':''}">${c}</button>`);
+    ch.onclick=()=>{haptic();cat=c;catsEl.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));ch.classList.add('on');paint();};
+    catsEl.appendChild(ch);
+  });
   q.oninput=()=>{query=q.value.trim().toLowerCase();paint();};
   function paint(){
     list.innerHTML='';
     let items=allFoods().filter(f=>dietAllowed(f.diet,diet)&&isHealthyFood(f));
+    if(cat==='🥜 Nuts')items=items.filter(isNutFood);
+    else if(cat==='Dinner')items=items.filter(f=>f.cat==='Dinner'||f.cat==='Lunch');
+    else if(cat!=='All')items=items.filter(f=>f.cat===cat);
     if(query)items=items.filter(f=>f.name.toLowerCase().includes(query)||f.aliases.some(a=>a.toLowerCase().includes(query)));
     items.sort((a,b)=>a.name.localeCompare(b.name));
     if(!items.length){list.appendChild(el(`<div class="empty"><div class="e-emoji">🥗</div>No healthy matches for this filter.</div>`));return;}
-    items.forEach(f=>list.appendChild(foodRow(f,guessMeal())));
+    items.forEach(f=>list.appendChild(healthyFoodRow(f,guessMeal())));
   }
   paint();openSheet(sheet);
 }
